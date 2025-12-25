@@ -1,15 +1,8 @@
 ---
 - hosts: all
   become: true
-  vars:
-    remote_admin_user:
-    remote_admin_key:
-    remote_admin_password:
-
-    remote_ansible_user:
-    remote_ansible_key:
-
-    remote_root_key:
+  vars_files:
+    - credentials.yml
 
   tasks:
     # Updating cache and installing updates
@@ -24,7 +17,7 @@
 
 
     # Rebooting
-    - name: Rebooting systemms
+    - name: Rebooting systems
       reboot:
 
     # User creation
