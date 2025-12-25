@@ -1,0 +1,77 @@
+---
+- hosts: all
+  become: true
+  vars:
+    remote_admin_user:
+    remote_admin_key:
+    remote_admin_password:
+
+    remote_ansible_user:
+    remote_ansible_key:
+
+    remote_root_key:
+
+  tasks:
+    # Updating cache and installing updates
+    - name: Updating index caches
+      apt:
+        update_cache: yes
+
+
+    - name: Installing the updates
+      apt:
+        upgrade: dist
+
+
+    # Rebooting
+    - name: Rebooting systemms
+      reboot:
+
+    # User creation
+    - name: Creating user for admin use
+      user:
+        name: "{{ remote_admin_user }}"
+        password: "{{ remote_admin_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        group: sudo
+      
+
+    - name: Addig ssh key for user
+      authorized_key:
+        user: "{{ remote_admin_user }}"
+        key: "{{ remote_admin_key }}"
+
+    - name: Creating user for ansible user
+      user:
+        name: "{{ remote_ansible_user }}"
+        group: sudo
+
+    - name: Addig ssh key for ansible user
+      authorized_key:
+        user: "{{ remote_ansible_user }}"
+        key: "{{ remote_ansible_key }}"
+
+    - name: Add sudoers file for user
+      copy:
+        dest: "/etc/sudoers.d/{{ remote_ansible_user }}"
+        content: "{{ remote_ansible_user }} ALL=(ALL) NOPASSWD:ALL"
+        owner: root
+        group: root
+        mode: 0440 
+
+
+    - name: Removing ssh key from the root
+      authorized_key:
+        user: root
+        key: "{{ remote_root_key }}"
+        state: absent
+
+
+    # Installing packages
+    - name: Installing needed packages
+      apt:
+        name: 
+          - curl
+          - ca-certificates
+          - git
+          - tmux
