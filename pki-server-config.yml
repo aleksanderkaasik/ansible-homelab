@@ -1,0 +1,19 @@
+git_repo_link: "https://github.com/aleksanderkaasik/RESTingCertCall.git"
+
+# Check version in https://nodesource.com/products/distributions
+node_installer_script_url: "https://deb.nodesource.com/setup_24.x"
+
+project_name: "pki-cert-api"
+project_path: "/var/opt/{{ project_name }}"
+
+nodejs_hostname: "0.0.0.0"
+nodejs_port: "3001"
+
+ca_cert_passphrase:
+
+country:
+country_state:
+city:
+organization: 
+organizational_unit:
+common_name:

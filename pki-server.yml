@@ -1,0 +1,114 @@
+---
+- hosts: pki-server
+  vars_files:
+    - pki-server-config.yml
+    - credentials.yml
+
+  tasks:
+    - name: "Installing needed dependencies on ubuntu"
+      apt:
+        name: 
+          - gpg
+          - ca-certificates
+          - curl
+          - gnupg
+          - git
+      
+
+    - name: Downloading nodejs package keys in the machine
+      become: true
+      shell: "curl -fsSL {{ node_installer_script_url }} | sudo -E bash -"
+
+
+    - name: Installing nodejs on the machine
+      become: true
+      apt:
+        name: nodejs
+        state: latest 
+
+    - name: "Cloning PKI API SERVER"
+      become: true
+      git:
+        repo: "{{ git_repo_link }}"
+        dest: "{{ project_path }}"
+
+    - name: Changing permissions
+      become: true
+      file:
+        path: "{{project_path}}"
+        owner: "{{ remote_ansible_user }}"
+        recurse: yes
+      
+    - name: "Creating env file"
+      copy:
+        remote_src: true
+        src: "{{ project_path }}/.envExample"
+        dest: "{{ project_path }}/.env"
+
+
+    - name: Setting up password to the root password
+      lineinfile:
+        path: "{{ project_path }}/.env"
+        regexp: "{{ item.regex }}"
+        line: "{{ item.value }}"
+      loop:
+        - { regex: "^CA_root_password", value: "CA_root_password={{ ca_cert_passphrase }}" }
+        - { regex: "^node_hostname", value: "node_hostname={{ nodejs_hostname }}" }
+        - { regex: "^node_port", value: "node_port={{ nodejs_port }}" }
+
+    - name: Creating directories for the project
+      file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ project_path }}/ca"
+        - "{{ project_path }}/reqs"
+        - "{{ project_path }}/issued"
+
+    - name: Generate CA private key (if not existing)
+      command: >
+        openssl genrsa
+        -aes256
+        -passout pass:"{{ ca_cert_passphrase }}"
+        -out "{{ project_path }}/ca/ca-key.pem"
+        4096
+      args:
+        creates: "{{ project_path }}/ca/ca-key.pem"
+
+    - name: Generate CA self-signed certificate (if not existing)
+      command: >
+        openssl req -x509 -new -nodes
+        -key "{{ project_path }}/ca/ca-key.pem"
+        -days 365
+        -out "{{ project_path }}/ca/ca.pem"
+        -subj "/C={{ country }}/ST={{ country_state }}/L={{ city }}/O={{ organization }}/OU={{ organizational_unit }}/CN={{ common_name }}"
+        -passin pass:"{{ ca_cert_passphrase }}"
+      args:
+        creates: "{{ project_path }}/ca/ca.pem"
+
+    - name: Set permissions on CA key and certificate
+      file:
+        path: "{{ item.location }}"
+        mode: "{{ item.permission }}"
+      loop:
+        - { location: "{{ project_path }}/ca/ca-key.pem", permission: "0400" }
+        - { location: "{{ project_path }}/ca/ca.pem", permission: "0440" }
+
+    - name: "Installing npm dependencies"
+      npm:
+        path: "{{ project_path }}"
+      #shell: "npm install --prefix {{project_path}}"
+
+    - name: "Adding a systemd services"
+      become: true
+      template:
+        src: "pki-server-systemd_template.service"
+        dest: "/etc/systemd/system/{{ project_name }}.service"
+        mode: "0555"
+
+    - name: "Starting the project service"
+      become: true
+      systemd_service:
+        state: restarted
+        enabled: true
+        name: "{{ project_name }}.service"
