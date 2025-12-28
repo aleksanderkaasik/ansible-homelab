@@ -1,0 +1,13 @@
+- hosts: all
+  tasks:
+    - name: Installing Ca cert
+      become: true
+      copy:
+        src: ca.crt
+        dest: /usr/local/share/ca-certificates/PersonalCa.crt
+      register: ChangedCert
+
+    - name: reloading certs list
+      become: true
+      shell: update-ca-certificates
+      when: ChangedCert.changed == true
