@@ -3,7 +3,8 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/node --env-file={{project_path}}/.env {{project_path}}
+WorkingDirectory={{project_path}}
+ExecStart=/usr/bin/node --env-file=.env index.js
 Restart=on-failure
 
 [Install]
