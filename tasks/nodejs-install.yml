@@ -16,7 +16,7 @@
   become: true
   apt:
     name: nodejs
-    state: "{{ item}}" 
+    state: "{{ item }}" 
   loop:
     - absent
     - latest

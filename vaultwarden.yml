@@ -1,17 +1,16 @@
 ---
 - hosts: vaultwarden
   vars_files:
-    - vaultwarden-config.yml
-    - SSL.yml
+    - variables/vaultwarden-config.yml
+    - variables/ssl-default-values.yml
   tasks:
-    - include_tasks: docker-install.yml
+    - include_tasks: tasks/docker-install.yml
 
-    - include_tasks: Adding-SSL-cert.yml
+    - include_tasks: tasks/adding-ssl-cert.yml
       vars:
         domain_name: "{{ domain_name }}"
         subject_alt_name_options:
           - "DNS:{{ domain_name }}"
-          - IP:192.168.1.3
 
     - name: Restart Docker service
       become: true

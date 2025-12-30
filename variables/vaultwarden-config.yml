@@ -1,9 +1,10 @@
 domain_name:
+
 admin_token:
 
 database_type:
 database_user:
 database_password:
-database_address: 
+database_address:
 database_port:
 database_database:

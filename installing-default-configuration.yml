@@ -2,7 +2,7 @@
 - hosts: all
   become: true
   vars_files:
-    - credentials.yml
+    - variables/credentials.yml
 
   tasks:
     # Updating cache and installing updates

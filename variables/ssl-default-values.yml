@@ -1,0 +1,10 @@
+PrivateKey: "{{ Name }}.key"
+CertificateSigningRequest: "{{ Name }}.csr"
+PublicKey: "{{ Name }}.crt"
+
+country:
+country_state:
+city:
+organization:
+organizational_unit:
+common_name_address: "{{Name}}"

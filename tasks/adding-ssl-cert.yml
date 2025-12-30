@@ -13,7 +13,7 @@
     mode: "0600"
     
 - name: Generate CSR
-  community.crypto.openssl_csr:
+  openssl_csr:
     path: "{{ CertificateSigningRequest }}"
     privatekey_path: "{{ PrivateKey }}"
     country_name: "{{ country }}"
@@ -25,12 +25,12 @@
     subject_alt_name: "{{ subject_alt_name_options }}"
 
 - name: Read CSR file from remote host
-  ansible.builtin.slurp:
+  slurp:
     src: "{{ CertificateSigningRequest }}"
   register: csr_file
 
 - name: POSTING CSR file to the pki server to be signed  
-  ansible.builtin.uri:
+  uri:
     remote_src: true
     url:
     method: POST

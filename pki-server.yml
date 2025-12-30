@@ -1,8 +1,8 @@
 ---
 - hosts: pki-server
   vars_files:
-    - pki-server-config.yml
-    - credentials.yml
+    - variables/pki-server-config.yml
+    - variables/credentials.yml
 
   tasks:
     - name: "Installing needed dependencies on ubuntu"
@@ -11,7 +11,7 @@
         name:
           - git
       
-    - include_tasks: nodejs-install.yml
+    - include_tasks: tasks/nodejs-install.yml
 
     - name: "Cloning PKI API SERVER"
       become: true
@@ -89,7 +89,7 @@
     - name: "Adding a systemd services"
       become: true
       template:
-        src: "pki-server-systemd_template.service"
+        src: template/pki-server-systemd_template.service
         dest: "/etc/systemd/system/{{ project_name }}.service"
         mode: "0555"
 
