@@ -1,0 +1,13 @@
+private_key: "{{ domain_name }}.key"
+csr_file: "{{ domain_name }}.csr"
+public_key: "{{ domain_name }}.crt"
+
+country: ""
+country_state: ""
+city: ""
+organization: ""
+organizational_unit: ""
+common_name_address: "{{ domain_name }}"
+subject_alt_name_options:
+  - DNS:"{{ domain_name }}"
+  # - IP:127.0.0.1

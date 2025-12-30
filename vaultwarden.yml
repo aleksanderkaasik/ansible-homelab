@@ -1,0 +1,52 @@
+---
+- hosts: vaultwarden
+  vars_files:
+    - vaultwarden-config.yml
+    - SSL.yml
+  tasks:
+    - include_tasks: docker-install.yml
+
+    - include_tasks: Adding-SSL-cert.yml
+      vars:
+        domain_name: "{{ domain_name }}"
+        subject_alt_name_options:
+          - "DNS:{{ domain_name }}"
+          - IP:192.168.1.3
+
+    - name: Restart Docker service
+      become: true
+      service:
+        name: docker
+        state: restarted
+    
+    - name: Adding vaultwarden directory
+      become: true
+      file:
+        path: /var/opt/vaultwarden
+        state: directory
+    
+    - name: Adding docker-composer file"
+      become: true
+      copy:
+        dest: /var/opt/vaultwarden/docker-compose.yml
+        content: |        
+          services:
+            vaultwarden:
+              image: vaultwarden/server:latest
+              container_name: vaultwarden
+              restart: unless-stopped
+              environment:
+                DATABASE_URL: "{{database_type}}://{{database_user}}:{{database_password}}@{{database_address}}:{{database_port}}/{{database_database}}"
+                ROCKET_TLS: '{certs="/etc/ssl/certs/{{PublicKey}}",key="/etc/ssl/private/{{PrivateKey}}"}'
+              volumes:
+                - ./vw-data/:/data/
+                - /etc/ssl:/etc/ssl
+              ports:
+                - 443:80 
+              
+    - name: Deploying docker
+      become: true
+      community.docker.docker_compose_v2:
+        project_src: /var/opt/vaultwarden
+        files: docker-compose.yml
+        state: "present"
