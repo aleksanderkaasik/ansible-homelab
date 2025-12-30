@@ -6,25 +6,12 @@
 
   tasks:
     - name: "Installing needed dependencies on ubuntu"
+      become: true
       apt:
-        name: 
-          - gpg
-          - ca-certificates
-          - curl
-          - gnupg
+        name:
           - git
       
-
-    - name: Downloading nodejs package keys in the machine
-      become: true
-      shell: "curl -fsSL {{ node_installer_script_url }} | sudo -E bash -"
-
-
-    - name: Installing nodejs on the machine
-      become: true
-      apt:
-        name: nodejs
-        state: latest 
+    - include_tasks: nodejs-install.yml
 
     - name: "Cloning PKI API SERVER"
       become: true
