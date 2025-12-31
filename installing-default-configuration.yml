@@ -6,22 +6,23 @@
     - variables/credentials.yml
 
   tasks:
-    # Updating cache and installing updates
     - name: Updating index caches
       ansible.builtin.apt:
         update_cache: true
 
+    - name: Upgrading packages
+      ansible.builtin.apt:
+        only_upgrade: true
 
-    - name: Installing the updates
+    - name: Upgrade the OS
       ansible.builtin.apt:
         upgrade: dist
 
 
-    # Rebooting
     - name: Rebooting systems
       ansible.builtin.reboot:
 
-    # User creation
+
     - name: Creating user for admin use
       ansible.builtin.user:
         name: "{{ remote_admin_user }}"
@@ -60,7 +61,6 @@
         state: absent
 
 
-    # Installing packages
     - name: Installing needed packages
       ansible.builtin.apt:
         name:
