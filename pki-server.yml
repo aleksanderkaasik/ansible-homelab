@@ -1,40 +1,47 @@
 ---
-- hosts: pki-server
+- name: Installing PKI server
+  hosts: pki-server
   vars_files:
     - variables/pki-server-config.yml
     - variables/credentials.yml
 
   tasks:
-    - name: "Installing needed dependencies on ubuntu"
+    - name: Installing needed dependencies on ubuntu
       become: true
-      apt:
+      ansible.builtin.apt:
         name:
           - git
-      
-    - include_tasks: tasks/nodejs-install.yml
 
-    - name: "Cloning PKI API SERVER"
+    - name: Installing NodeJS
+      ansible.builtin.include_tasks: tasks/nodejs-install.yml
+
+    - name: Cloning PKI API SERVER
       become: true
-      git:
+      ansible.builtin.git:
         repo: "{{ git_repo_link }}"
         dest: "{{ project_path }}"
+        version: main
+        update: true
 
     - name: Changing permissions
       become: true
-      file:
-        path: "{{project_path}}"
+      ansible.builtin.file:
+        path: "{{ project_path }}"
         owner: "{{ remote_ansible_user }}"
-        recurse: yes
-      
-    - name: "Creating env file"
-      copy:
+        recurse: true
+
+    - name: Creating env file
+      ansible.builtin.copy:
         remote_src: true
         src: "{{ project_path }}/.envExample"
         dest: "{{ project_path }}/.env"
+        owner: "{{ remote_ansible_user }}"
+        group: root
+        mode: "740"
 
 
     - name: Setting up password to the root password
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: "{{ project_path }}/.env"
         regexp: "{{ item.regex }}"
         line: "{{ item.value }}"
@@ -44,16 +51,19 @@
         - { regex: "^node_port", value: "node_port={{ nodejs_port }}" }
 
     - name: Creating directories for the project
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: directory
+        owner: "{{ remote_ansible_user }}"
+        group: root
+        mode: "0740"
       loop:
         - "{{ project_path }}/ca"
         - "{{ project_path }}/reqs"
         - "{{ project_path }}/issued"
 
     - name: Generate CA private key (if not existing)
-      command: >
+      ansible.builtin.command: >
         openssl genrsa
         -aes256
         -passout pass:"{{ ca_cert_passphrase }}"
@@ -63,7 +73,7 @@
         creates: "{{ project_path }}/ca/ca-key.pem"
 
     - name: Generate CA self-signed certificate (if not existing)
-      command: >
+      ansible.builtin.command: >
         openssl req -x509 -new -nodes
         -key "{{ project_path }}/ca/ca-key.pem"
         -days 365
@@ -74,28 +84,38 @@
         creates: "{{ project_path }}/ca/ca.pem"
 
     - name: Set permissions on CA key and certificate
-      file:
+      ansible.builtin.file:
         path: "{{ item.location }}"
         mode: "{{ item.permission }}"
       loop:
         - { location: "{{ project_path }}/ca/ca-key.pem", permission: "0400" }
         - { location: "{{ project_path }}/ca/ca.pem", permission: "0440" }
 
-    - name: "Installing npm dependencies"
-      npm:
+    - name: Installing npm dependencies
+      community.general.npm:
         path: "{{ project_path }}"
-      #shell: "npm install --prefix {{project_path}}"
 
-    - name: "Adding a systemd services"
+    - name: Adding a systemd services
       become: true
-      template:
-        src: template/pki-server-systemd_template.service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory={{ project_path }}
+          ExecStart=/usr/bin/node --env-file=.env index.js
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
         dest: "/etc/systemd/system/{{ project_name }}.service"
         mode: "0555"
 
-    - name: "Starting the project service"
+    - name: Starting the project service
       become: true
-      systemd_service:
+      ansible.builtin.systemd:
         state: restarted
         enabled: true
         name: "{{ project_name }}.service"

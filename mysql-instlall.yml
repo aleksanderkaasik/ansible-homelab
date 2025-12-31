@@ -1,47 +1,48 @@
 ---
-- hosts: mysql
+- name: MySQL server
+  hosts: mysql
   tasks:
     - name: Installing MySQL
       become: true
-      apt:
+      ansible.builtin.apt:
         name:
           - mysql-server
           - python3-pymysql
 
     - name: Enabling MySQL
       become: true
-      systemd_service:
+      ansible.builtin.systemd_service:
         name: mysql
         state: started
         enabled: true
 
     - name: Update MySQL bind-address
       become: true
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: /etc/mysql/mysql.conf.d/mysqld.cnf
         regexp: "{{ item.regex }}"
         line: "{{ item.out }}"
       loop:
         - { regex: '^bind-address', out: 'bind-address = 0.0.0.0' }
         - { regex: '^mysqlx-bind-addres', out: 'mysqlx-bind-address = 0.0.0.0' }
-    
+
     - name: Restart MySQL service
       become: true
-      service:
+      ansible.builtin.service:
         name: mysql
         state: restarted
 
     - name: Check if it was imported
       become: true
-      stat:
+      ansible.builtin.stat:
         path: /var/lib/mysql/.backup_imported
-      register: stat_result  
+      register: stat_result
 
     - name: Copy dump file to remote host
-      copy:
-        src: 
+      ansible.builtin.copy:
+        src: files/mysql.sql
         dest: /tmp/mysql.sql
-        mode: '0644'
+        mode: "0644"
       when: not stat_result.stat.exists
 
     - name: Import MySQL dump
@@ -56,6 +57,9 @@
 
     - name: Create marker file after import
       become: true
-      file:
+      ansible.builtin.file:
         path: /var/lib/mysql/.backup_imported
         state: touch
+        owner: mysql
+        group: mysql
+        mode: "0640"

@@ -1,19 +1,19 @@
 ---
 - name: Installing cryptography dependencies
   become: true
-  apt:
-    name: 
+  ansible.builtin.apt:
+    name:
       - python3-cryptography
 
 - name: Generate Private key
-  openssl_privatekey:
+  community.crypto.openssl_privatekey:
     path: "{{ PrivateKey }}"
     size: 4096
     type: RSA
     mode: "0600"
-    
+
 - name: Generate CSR
-  openssl_csr:
+  community.crypto.openssl_csr:
     path: "{{ CertificateSigningRequest }}"
     privatekey_path: "{{ PrivateKey }}"
     country_name: "{{ country }}"
@@ -25,33 +25,34 @@
     subject_alt_name: "{{ subject_alt_name_options }}"
 
 - name: Read CSR file from remote host
-  slurp:
+  ansible.builtin.slurp:
     src: "{{ CertificateSigningRequest }}"
   register: csr_file
 
-- name: POSTING CSR file to the pki server to be signed  
-  uri:
+- name: POSTING CSR file to the pki server to be signed
+  ansible.builtin.uri:
     remote_src: true
     url:
     method: POST
     body_format: form-multipart
     body:
       DomainName: "{{ domain_name }}"
-      CertificateSigningRequest: 
+      CertificateSigningRequest:
         filename: "{{ CertificateSigningRequest }}"
         content: "{{ csr_file.content | b64decode }}"
         mime_type: text/plain
     return_content: true
-  register: response  
+  register: response
 
 - name: Write response to file
-  copy:
+  ansible.builtin.copy:
     content: "{{ response.content }}"
     dest: "{{ PublicKey }}"
+    mode: "0760"
 
 - name: Moving keys
-  become: true  
-  copy: 
+  become: true
+  ansible.builtin.copy:
     remote_src: true
     src: "{{ item.Source }}"
     dest: "{{ item.Path }}"
@@ -59,11 +60,11 @@
     owner: root
     group: "{{ item.Groups }}"
   loop:
-    - { Source: "{{PublicKey}}", Path: '/etc/ssl/certs' , Perm: '0644', Groups: 'root' }
-    - { Source: "{{PrivateKey}}", Path: '/etc/ssl/private', Perm: '0640', Groups: 'ssl-cert'}
-  
+    - { Source: "{{ PublicKey }}", Path: "/etc/ssl/certs", Perm: "0644", Groups: "root" }
+    - { Source: "{{ PrivateKey }}", Path: "/etc/ssl/private", Perm: "0640", Groups: "ssl-cert"}
+
 - name: Delete the CSR file
-  file:
+  ansible.builtin.file:
     state: absent
     dest: "{{ item }}"
   loop:

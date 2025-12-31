@@ -1,51 +1,59 @@
 ---
-- hosts: vaultwarden
+- name: Installing vaultwarden
+  hosts: vaultwarden
   vars_files:
     - variables/vaultwarden-config.yml
     - variables/ssl-default-values.yml
   tasks:
-    - include_tasks: tasks/docker-install.yml
+    - name: Installing docker
+      ansible.builtin.include_tasks: tasks/docker-install.yml
 
-    - include_tasks: tasks/adding-ssl-cert.yml
+    - name: Installing ssl cert for https connection
+      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
       vars:
-        domain_name: "{{ domain_name }}"
         subject_alt_name_options:
           - "DNS:{{ domain_name }}"
 
     - name: Restart Docker service
       become: true
-      service:
+      ansible.builtin.service:
         name: docker
         state: restarted
-    
+
     - name: Adding vaultwarden directory
       become: true
-      file:
+      ansible.builtin.file:
         path: /var/opt/vaultwarden
         state: directory
-    
-    - name: Adding docker-composer file"
+        owner: root
+        group: root
+        mode: '0640'
+
+    - name: Adding docker-composer file
       become: true
-      copy:
-        dest: /var/opt/vaultwarden/docker-compose.yml
-        content: |        
+      ansible.builtin.copy:
+        path: /var/opt/vaultwarden/docker-compose.yml
+        content: |
           services:
             vaultwarden:
               image: vaultwarden/server:latest
               container_name: vaultwarden
               restart: unless-stopped
               environment:
-                DATABASE_URL: "{{database_type}}://{{database_user}}:{{database_password}}@{{database_address}}:{{database_port}}/{{database_database}}"
-                ROCKET_TLS: '{certs="/etc/ssl/certs/{{PublicKey}}",key="/etc/ssl/private/{{PrivateKey}}"}'
+                DATABASE_URL: "{{ database_connection_url }}"
+                ROCKET_TLS: '{certs="/etc/ssl/certs/{{ PublicKey }}", key="/etc/ssl/private/{{ PrivateKey }}"}'
               volumes:
                 - ./vw-data/:/data/
                 - /etc/ssl:/etc/ssl
               ports:
-                - 443:80 
-              
+                - 443:80
+        owner: root
+        group: root
+        mode: '0640'
+
     - name: Deploying docker
       become: true
       community.docker.docker_compose_v2:
         project_src: /var/opt/vaultwarden
         files: docker-compose.yml
-        state: "present"
+        state: present

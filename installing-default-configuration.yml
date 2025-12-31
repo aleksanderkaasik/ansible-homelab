@@ -1,5 +1,6 @@
 ---
-- hosts: all
+- name: Configuring fresh machine by adding user and updates and packages
+  hosts: all
   become: true
   vars_files:
     - variables/credentials.yml
@@ -7,54 +8,53 @@
   tasks:
     # Updating cache and installing updates
     - name: Updating index caches
-      apt:
-        update_cache: yes
+      ansible.builtin.apt:
+        update_cache: true
 
 
     - name: Installing the updates
-      apt:
+      ansible.builtin.apt:
         upgrade: dist
 
 
     # Rebooting
     - name: Rebooting systems
-      reboot:
+      ansible.builtin.reboot:
 
     # User creation
     - name: Creating user for admin use
-      user:
+      ansible.builtin.user:
         name: "{{ remote_admin_user }}"
         password: "{{ remote_admin_password | password_hash('sha512') }}"
         shell: /bin/bash
         group: sudo
-      
+
 
     - name: Addig ssh key for user
-      authorized_key:
+      ansible.posix.authorized_key:
         user: "{{ remote_admin_user }}"
         key: "{{ remote_admin_key }}"
 
     - name: Creating user for ansible user
-      user:
+      ansible.builtin.user:
         name: "{{ remote_ansible_user }}"
         group: sudo
 
     - name: Addig ssh key for ansible user
-      authorized_key:
+      ansible.posix.authorized_key:
         user: "{{ remote_ansible_user }}"
         key: "{{ remote_ansible_key }}"
 
     - name: Add sudoers file for user
-      copy:
+      ansible.builtin.copy:
         dest: "/etc/sudoers.d/{{ remote_ansible_user }}"
         content: "{{ remote_ansible_user }} ALL=(ALL) NOPASSWD:ALL"
         owner: root
         group: root
-        mode: 0440 
-
+        mode: "0440"
 
     - name: Removing ssh key from the root
-      authorized_key:
+      ansible.posix.authorized_key:
         user: root
         key: "{{ remote_root_key }}"
         state: absent
@@ -62,8 +62,8 @@
 
     # Installing packages
     - name: Installing needed packages
-      apt:
-        name: 
+      ansible.builtin.apt:
+        name:
           - curl
           - ca-certificates
           - git

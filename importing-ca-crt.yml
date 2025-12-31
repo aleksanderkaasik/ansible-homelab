@@ -1,13 +1,17 @@
-- hosts: all
+- name: Installing Ca cert
+  hosts: all
   tasks:
     - name: Installing Ca cert
       become: true
-      copy:
-        src: ca.crt
+      ansible.builtin.copy:
+        src: files/ca.crt
         dest: /usr/local/share/ca-certificates/PersonalCa.crt
-      register: ChangedCert
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reloading certs list
 
-    - name: reloading certs list
+  handlers:
+    - name: Reloading certs list
       become: true
-      shell: update-ca-certificates
-      when: ChangedCert.changed == true
+      ansible.builtin.command: update-ca-certificates
