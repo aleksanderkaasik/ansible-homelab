@@ -1,0 +1,4 @@
+mysql_database_dumps:
+  - database_dump_name: # place the name of the database was selected from dump
+    local_dump_path: files/MySQL-dump/
+    remote_temp_path:
