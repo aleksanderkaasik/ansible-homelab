@@ -1,0 +1,213 @@
+---
+- name: Installing WordPress
+  hosts: mysql-test
+  vars_files:
+    - variables/wordpress-config.yml
+    - variables/ssl-default-values.yml
+  tasks:
+    - name: Installing dependacies for wordpress
+      become: true
+      ansible.builtin.apt:
+        name:
+          - ghostscript
+          - libapache2-mod-php
+          - php
+          - php-bcmath
+          - php-curl
+          - php-imagick
+          - php-intl
+          - php-json
+          - php-mbstring
+          - php-mysql
+          - php-xml
+          - php-zip
+          - tar
+
+    - name: Downloading wordpress
+      become: true
+      ansible.builtin.get_url:
+        url: https://wordpress.org/latest.tar.gz
+        dest: /tmp
+        mode: "0655"
+        force: true
+
+    - name: Extracting file
+      become: true
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: /tmp/latest.tar.gz
+        dest: /var/www
+        owner: www-data
+        group: www-data
+
+    - name: Installing ssl cert for https connection
+      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
+      vars:
+        subject_alt_name_options:
+          - "DNS:{{ domain_name }}"
+          - "IP:{{ ip_address }}"
+
+    - name: Adding apache wordpress config
+      become: true
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:80>
+            DocumentRoot "/var/www/wordpress"
+
+            ServerName {{ domain_name }}
+
+            AllowEncodedSlashes On
+
+            php_value upload_max_filesize 100M
+            php_value post_max_size 100M
+
+            <Directory "/var/www/wordpress">
+                Require all granted
+                AllowOverride all
+            </Directory>
+          </VirtualHost>
+
+          <VirtualHost *:443>
+              DocumentRoot "/var/www/wordpress"
+
+              ServerName {{ domain_name }}
+
+              AllowEncodedSlashes On
+
+              php_value upload_max_filesize 100M
+              php_value post_max_size 100M
+
+              <Directory "/var/www/wordpress">
+                  Require all granted
+                  AllowOverride all
+              </Directory>
+
+              SSLEngine on
+              SSLCertificateFile /etc/ssl/certs/{{ PublicKey }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ PrivateKey }}
+          </VirtualHost>
+        dest: /etc/apache2/sites-available/wordpress.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Disable default Apache site
+      become: true
+      ansible.builtin.command: a2dissite 000-default.conf
+      args:
+        removes: /etc/apache2/sites-enabled/000-default.conf
+
+    - name: Enable Apache site
+      become: true
+      ansible.builtin.command: a2ensite wordpress.conf
+      args:
+        creates: /etc/apache2/sites-enabled/wordpress.conf
+
+    - name: Enabling apache mods
+      become: true
+      ansible.builtin.command: a2enmod ssl rewrite headers env dir mime
+
+    - name: Restart apache
+      become: true
+      ansible.builtin.service:
+        name: apache2
+        state: restarted
+
+
+    - name: Adding the config file
+      become: true
+      ansible.builtin.file:
+        state: touch
+        path: /var/www/wordpress/wp-config.php
+        owner: www-data
+        group: www-data
+        mode: '0640'
+
+    - name: Setting up config file
+      become: true
+      ansible.builtin.copy:
+        content: |
+          <?php
+          /** The name of the database for WordPress */
+          define( 'DB_NAME', '{{ database.name }}' );
+
+          /** Database username */
+          define( 'DB_USER', '{{ database.user }}' );
+
+          /** Database password */
+          define( 'DB_PASSWORD', '{{ database.pass }}' );
+
+          /** Database hostname */
+          define( 'DB_HOST', '{{ database.host }}:{{ database.port }}' );
+
+          /** Database charset to use in creating database tables. */
+          define( 'DB_CHARSET', 'utf8mb4' );
+
+          /** The database collate type. Don't change this if in doubt. */
+          define( 'DB_COLLATE', '' );
+
+          /** https://api.wordpress.org/secret-key/1.1/salt/ */
+          define( 'AUTH_KEY', '{{ AUTH_KEY }}' );
+          define( 'SECURE_AUTH_KEY', '{{ SECURE_AUTH_KEY }}' );
+          define( 'LOGGED_IN_KEY', '{{ LOGGED_IN_KEY }}' );
+          define( 'NONCE_KEY', '{{ NONCE_KEY }}' );
+          define( 'AUTH_SALT', '{{ AUTH_SALT }}' );
+          define( 'SECURE_AUTH_SALT', '{{ SECURE_AUTH_SALT }}' );
+          define( 'LOGGED_IN_SALT', '{{ LOGGED_IN_SALT }}' );
+          define( 'NONCE_SALT', '{{ NONCE_SALT }}' );
+
+          $table_prefix = 'wp_';
+          define( 'WP_DEBUG', false );
+
+          /* Add any custom values between this line and the "stop editing" line. */
+
+          /* Multisite */
+          define( 'WP_ALLOW_MULTISITE', true );
+
+          define( 'MULTISITE', true );
+          define( 'SUBDOMAIN_INSTALL', false );
+          define( 'DOMAIN_CURRENT_SITE', '{{ domain_name }}' );
+          define( 'PATH_CURRENT_SITE', '/' );
+          define( 'SITE_ID_CURRENT_SITE', 1 );
+          define( 'BLOG_ID_CURRENT_SITE', 1 );
+
+
+          /* That's all, stop editing! Happy publishing. */
+
+          /** Absolute path to the WordPress directory. */
+          if ( ! defined( 'ABSPATH' ) ) {
+                  define( 'ABSPATH', __DIR__ . '/' );
+          }
+
+          /** Sets up WordPress vars and included files. */
+          require_once ABSPATH . 'wp-settings.php'
+        dest: /var/www/wordpress/wp-config.php
+        owner: www-data
+        group: www-data
+        mode: '0640'
+
+
+    - name: Setting up config file
+      become: true
+      ansible.builtin.copy:
+        content: |
+          <IfModule mod_rewrite.c>
+            RewriteEngine On
+            RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+            RewriteBase /
+            RewriteRule ^index\.php$ - [L]
+
+            # add a trailing slash to /wp-admin
+            RewriteRule ^([_0-9a-zA-Z-]+/)?wp-admin$ $1wp-admin/ [R=301,L]
+
+            RewriteCond %{REQUEST_FILENAME} -f [OR]
+            RewriteCond %{REQUEST_FILENAME} -d
+            RewriteRule ^ - [L]
+            RewriteRule ^([_0-9a-zA-Z-]+/)?(wp-(content|admin|includes).*) $2 [L]
+            RewriteRule ^([_0-9a-zA-Z-]+/)?(.*\.php)$ $2 [L]
+            RewriteRule . index.php [L]
+          </IfModule>
+        dest: /var/www/wordpress/.htaccess
+        owner: www-data
+        group: www-data
+        mode: '0640'
