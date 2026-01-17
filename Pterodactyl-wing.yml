@@ -1,0 +1,102 @@
+---
+- name: Installing pterodactyl panel
+  hosts: pterodactyl-wing
+  vars_files:
+    - variables/pterodactyl_wing.yml
+    - variables/ssl-default-values.yml
+  tasks:
+    - name: Installing dependency
+      become: true
+      ansible.builtin.apt:
+        name:
+          - curl
+
+    - name: Installing docker
+      ansible.builtin.include_tasks: tasks/docker-install.yml
+
+
+    - name: Download Pterodactyl Wings
+      become: true
+      ansible.builtin.get_url:
+        url: "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}"
+        dest: /usr/local/bin/wings
+        mode: '0755'
+
+    - name: Adding pterodactyl directory
+      become: true
+      ansible.builtin.file:
+        state: directory
+        dest: /etc/pterodactyl
+        owner: root
+        group: root
+        mode: "0640"
+
+
+    - name: Installing ssl cert for https connection
+      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
+      vars:
+        subject_alt_name_options:
+          - "DNS:{{ domain_name }}"
+          - "IP:{{ ip_address }}"
+
+    - name: Adding pterodactyl directory
+      become: true
+      ansible.builtin.copy:
+        content: |
+          debug: false
+          uuid: {{ uuid }}
+          token_id: {{ token_id }}
+          token: {{ token }}
+          api:
+            host: 0.0.0.0
+            port: 8080
+            ssl:
+              enabled: true
+              cert: /etc/ssl/certs/{{ PublicKey }}
+              key: /etc/ssl/private/{{ PrivateKey }}
+            upload_limit: 100
+          system:
+            data: /var/lib/pterodactyl/volumes
+            sftp:
+              bind_port: 2022
+          allowed_mounts: []
+          remote: '{{ remote_server }}'
+        dest: /etc/pterodactyl/config.yml
+        owner: root
+        group: root
+        mode: "0640"
+
+    - name: Adding pterodactyl directory
+      become: true
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Pterodactyl Wings Daemon
+          After=docker.service
+          Requires=docker.service
+          PartOf=docker.service
+
+          [Service]
+          User=root
+          WorkingDirectory=/etc/pterodactyl
+          LimitNOFILE=4096
+          PIDFile=/var/run/wings/daemon.pid
+          ExecStart=/usr/local/bin/wings
+          Restart=on-failure
+          StartLimitInterval=180
+          StartLimitBurst=30
+          RestartSec=5s
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/wings.service
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Starting the project service
+      become: true
+      ansible.builtin.systemd:
+        state: restarted
+        enabled: true
+        name: wings.service
