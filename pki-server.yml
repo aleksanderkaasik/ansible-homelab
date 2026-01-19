@@ -22,23 +22,26 @@
         dest: "{{ project_path }}"
         version: main
         update: true
+        force: true
 
     - name: Changing permissions
       become: true
       ansible.builtin.file:
         path: "{{ project_path }}"
         owner: "{{ remote_ansible_user }}"
+        group: root
+        mode: "0740"
         recurse: true
 
     - name: Creating env file
+      become: true
       ansible.builtin.copy:
         remote_src: true
         src: "{{ project_path }}/.envExample"
         dest: "{{ project_path }}/.env"
         owner: "{{ remote_ansible_user }}"
         group: root
-        mode: "740"
-
+        mode: "0740"
 
     - name: Setting up password to the root password
       ansible.builtin.lineinfile:
@@ -77,11 +80,11 @@
         openssl req -x509 -new -nodes
         -key "{{ project_path }}/ca/ca-key.pem"
         -days 365
-        -out "{{ project_path }}/ca/ca.pem"
+        -out "{{ project_path }}/ca/ca.crt"
         -subj "/C={{ country }}/ST={{ country_state }}/L={{ city }}/O={{ organization }}/OU={{ organizational_unit }}/CN={{ common_name }}"
         -passin pass:"{{ ca_cert_passphrase }}"
       args:
-        creates: "{{ project_path }}/ca/ca.pem"
+        creates: "{{ project_path }}/ca/ca.crt"
 
     - name: Set permissions on CA key and certificate
       ansible.builtin.file:
@@ -89,7 +92,7 @@
         mode: "{{ item.permission }}"
       loop:
         - { location: "{{ project_path }}/ca/ca-key.pem", permission: "0400" }
-        - { location: "{{ project_path }}/ca/ca.pem", permission: "0440" }
+        - { location: "{{ project_path }}/ca/ca.crt", permission: "0440" }
 
     - name: Installing npm dependencies
       community.general.npm:
