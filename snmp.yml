@@ -1,0 +1,44 @@
+---
+- name: Installing zabbix server
+  hosts: all
+  vars_files:
+    - variables/snmp-config.yml
+  tasks:
+    - name: Install snmp
+      become: true
+      ansible.builtin.apt:
+        name:
+          - snmpd
+          - libsnmp-dev
+
+    - name: Setting up snmp config
+      become: true
+      ansible.builtin.copy:
+        content: |
+          sysLocation    Sitting on the Dock of the Bay
+          sysContact     Me <me@example.org>
+          sysServices    72
+
+          master  agentx
+          agentaddress  udp:161
+
+          view   systemonly  included   .1.3.6.1.2.1.1
+          view   systemonly  included   .1.3.6.1.2.1.25.1
+
+          rocommunity {{ community_string }} {{ allowed_address }}
+          rocommunity6 {{ community_string }} {{ allowed_address }}
+
+          rouser authPrivUser authpriv -V systemonly
+
+          includeDir /etc/snmp/snmpd.conf.d
+        dest: /etc/snmp/snmpd.conf
+        owner: root
+        group: Debian-snmp
+        mode: "0640"
+
+    - name: Restart snmpd
+      become: true
+      ansible.builtin.service:
+        name: snmpd
+        state: restarted
+        enabled: true

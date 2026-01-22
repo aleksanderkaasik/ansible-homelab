@@ -1,0 +1,139 @@
+---
+- name: Installing zabbix server
+  hosts: zabbix-server
+  vars_files:
+    - variables/zabbix-server-config.yml
+    - variables/ssl-default-values.yml
+  tasks:
+    - name: Install Zabbix repository
+      become: true
+      ansible.builtin.apt:
+        deb: https://repo.zabbix.com/zabbix/7.4/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.4+ubuntu24.04_all.deb
+
+    - name: Updating index caches
+      become: true
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Zabbix server, frontend, agent2, apache, php
+      become: true
+      ansible.builtin.apt:
+        name:
+          - zabbix-server-mysql
+          - zabbix-frontend-php
+          - zabbix-sql-scripts
+          - zabbix-agent2
+          - python3-pymysql
+          - apache2
+          - php
+
+    - name: Install Zabbix agent 2 plugins
+      become: true
+      ansible.builtin.apt:
+        name:
+          - zabbix-agent2-plugin-mongodb
+          - zabbix-agent2-plugin-mssql
+          - zabbix-agent2-plugin-postgresql
+
+    - name: Import MySQL dump
+      become: true
+      community.mysql.mysql_db:
+        name: zabbix
+        state: import
+        target: /usr/share/zabbix/sql-scripts/mysql/server.sql.gz
+        login_user: "{{ db_user }}"
+        login_password: "{{ db_password }}"
+        login_host: "{{ db_host }}"
+        login_port: "{{ db_port }}"
+        encoding: utf8mb4
+
+
+    - name: Installing ssl cert for https connection
+      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
+      vars:
+        subject_alt_name_options:
+          - "DNS:{{ domain_name }}"
+
+    - name: Adding apache zabbix config
+      become: true
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:80>
+              ServerName {{ domain_name }}
+              RewriteEngine On
+              RewriteCond %{HTTPS} !=on
+              RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]
+          </VirtualHost>
+          <VirtualHost *:443>
+              DocumentRoot "/usr/share/zabbix/ui"
+
+              ServerName {{ domain_name }}
+
+              AllowEncodedSlashes On
+
+              php_value post_max_size 16M
+              php_value max_execution_time 300
+              php_value max_input_time 300
+
+              <Directory "/usr/share/zabbix/ui">
+                  Require all granted
+                  AllowOverride all
+              </Directory>
+
+              SSLEngine on
+              SSLCertificateFile /etc/ssl/certs/{{ PublicKey }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ PrivateKey }}
+          </VirtualHost>
+        dest: /etc/apache2/sites-available/zabbix.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Disable default Apache site
+      become: true
+      ansible.builtin.command: a2dissite 000-default.conf
+      args:
+        removes: /etc/apache2/sites-enabled/000-default.conf
+
+    - name: Enable Apache site
+      become: true
+      ansible.builtin.command: a2ensite zabbix.conf
+      args:
+        creates: /etc/apache2/sites-enabled/zabbix.conf
+
+    - name: Enabling apache mods
+      become: true
+      ansible.builtin.command: a2enmod ssl rewrite headers env dir mime
+
+    - name: Restart apache
+      become: true
+      ansible.builtin.service:
+        name: apache2
+        state: restarted
+
+    - name: Adding database creditals
+      become: true
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        regexp: "^#?\\s*{{ item.option }}="
+        line: "{{ item.option }}={{ item.value }}"
+      loop:
+        - { option: DBHost, value: "{{ db_host }}" }
+        - { option: DBPort, value: "{{ db_port }}" }
+        - { option: DBName, value: "{{ db_database }}" }
+        - { option: DBUser, value: "{{ db_user }}" }
+        - { option: DBPassword, value: "{{ db_password }}" }
+
+
+    - name: Restart Zabbix server
+      become: true
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: restarted
+        enabled: true
+      loop:
+        - zabbix-server
+        - zabbix-agent2
+        - apache2
+
+# The default URL for Zabbix UI when using Apache web server is https://host/

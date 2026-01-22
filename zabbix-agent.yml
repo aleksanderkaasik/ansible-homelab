@@ -1,0 +1,52 @@
+---
+- name: Installing zabbix server
+  hosts: all
+  vars_files:
+    - variables/zabbix-agent-config.yml
+  tasks:
+    - name: Install Zabbix repository
+      become: true
+      ansible.builtin.apt:
+        deb: https://repo.zabbix.com/zabbix/7.4/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.4+ubuntu24.04_all.deb
+
+    - name: Updating index caches
+      become: true
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install agent2
+      become: true
+      ansible.builtin.apt:
+        name:
+          - zabbix-agent2
+
+    - name: Install Zabbix agent 2 plugins
+      become: true
+      ansible.builtin.apt:
+        name:
+          - zabbix-agent2-plugin-mongodb
+          - zabbix-agent2-plugin-mssql
+          - zabbix-agent2-plugin-postgresql
+
+    - name: Adding database credentials
+      become: true
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_agent2.conf
+        regexp: "^#?\\s*{{ item.option }}="
+        line: "{{ item.option }}={{ item.value }}"
+      loop:
+        - { option: Server, value: "{{ zabbix_agent_server }}" }
+        - { option: ListenPort, value: "{{ zabbix_agent_port }}" }
+        - { option: ServerActive, value: "{{ zabbix_agent_server }}" }
+        - { option: Hostname, value: "{{ ansible_hostname }}" }
+        - { option: HostnameItem, value: "{{ ansible_hostname }}" }
+        - { option: HostMetadata, value: "zabbix_{{ ansible_hostname }}" }
+        - { option: HostMetadataItem, value: "{{ ansible_hostname }}" }
+
+
+    - name: Restart Zabbix agent
+      become: true
+      ansible.builtin.service:
+        name: zabbix-agent2
+        state: restarted
+        enabled: true
