@@ -1,0 +1,29 @@
+---
+- name: Installing nginx as reverse-proxy
+  hosts: nginx_reverse_proxy
+  vars_files:
+    - variables/nginx-reverse-proxy.config.yml
+  tasks:
+    - name: Installing nginx
+      become: true
+      ansible.builtin.apt:
+        name:
+          - nginx
+          - python3-cryptography
+
+    - name: Enabling nginx
+      become: true
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Adding site configuration
+      ansible.builtin.include_tasks: tasks/nginx-reverse.yml
+      loop: "{{ nginx_site_config }}"
+
+    - name: Restarting nginx
+      become: true
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: restarted
