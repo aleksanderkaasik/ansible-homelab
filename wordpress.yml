@@ -1,11 +1,10 @@
 ---
-- name: Installing WordPress
-  hosts: mysql-test
+- name: Running WordPress Playbook
+  hosts: wordpress
   vars_files:
-    - variables/wordpress-config.yml
-    - variables/ssl-default-values.yml
+    - variable/main.yml
   tasks:
-    - name: Installing dependacies for wordpress
+    - name: Install dependacies for WordPress
       become: true
       ansible.builtin.apt:
         name:
@@ -22,8 +21,9 @@
           - php-xml
           - php-zip
           - tar
+          - python3-pymysql
 
-    - name: Downloading wordpress
+    - name: Download WordPress
       become: true
       ansible.builtin.get_url:
         url: https://wordpress.org/latest.tar.gz
@@ -31,7 +31,7 @@
         mode: "0655"
         force: true
 
-    - name: Extracting file
+    - name: Extract WordPress files
       become: true
       ansible.builtin.unarchive:
         remote_src: true
@@ -40,105 +40,128 @@
         owner: www-data
         group: www-data
 
-    - name: Installing ssl cert for https connection
-      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
-      vars:
-        subject_alt_name_options:
-          - "DNS:{{ domain_name }}"
-          - "IP:{{ ip_address }}"
+    - name: Create WordPress database
+      become: true
+      community.mysql.mysql_db:
+        name: "{{ wordpress.database.name }}"
+        state: present
+        login_user: "{{ mysql.username }}"
+        login_password: "{{ mysql.password }}"
+        login_host: "{{ mysql.address }}"
+        login_port: "{{ mysql.port }}"
 
-    - name: Adding apache wordpress config
+    - name: Create WordPress users
+      become: true
+      community.mysql.mysql_user:
+        login_user: "{{ mysql.username }}"
+        login_password: "{{ mysql.password }}"
+        login_host: "{{ mysql.address }}"
+        login_port: "{{ mysql.port }}"
+        column_case_sensitive: true
+        name: "{{ wordpress.database.user }}"
+        password: "{{ wordpress.database.password }}"
+        host: "%"
+        priv:
+          "{{ wordpress.database.name }}.*:ALL"
+        state: present
+
+    - name: SSL certificate request generator
+      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
+
+    - name: Enable apache mods for https
+      become: true
+      community.general.apache2_module:
+        state: present
+        name: "{{ item }}"
+      notify: Restart Apache2
+      loop:
+        - ssl
+        - rewrite
+        - headers
+        - env
+        - dir
+        - mime
+
+    - name: Add WordPress Apache2 config
       become: true
       ansible.builtin.copy:
         content: |
           <VirtualHost *:80>
-            DocumentRoot "/var/www/wordpress"
+            DocumentRoot /var/www/wordpress
 
             ServerName {{ domain_name }}
 
-            AllowEncodedSlashes On
-
-            php_value upload_max_filesize 100M
-            php_value post_max_size 100M
-
-            <Directory "/var/www/wordpress">
+            <Directory /var/www/wordpress>
+                Options FollowSymLinks
+                AllowOverride Limit Options FileInfo
+                DirectoryIndex index.php
                 Require all granted
-                AllowOverride all
+            </Directory>
+
+            <Directory /var/www/wordpress/wp-content>
+                Options FollowSymLinks
+                Require all granted
             </Directory>
           </VirtualHost>
 
           <VirtualHost *:443>
-              DocumentRoot "/var/www/wordpress"
-
+              DocumentRoot /var/www/wordpress
               ServerName {{ domain_name }}
 
-              AllowEncodedSlashes On
+              SSLEngine on
+              SSLCertificateFile /etc/ssl/certs/{{ certificate.public_key }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ certificate.private_key }}
 
-              php_value upload_max_filesize 100M
-              php_value post_max_size 100M
-
-              <Directory "/var/www/wordpress">
+              <Directory /var/www/wordpress>
+                  Options FollowSymLinks
+                  AllowOverride Limit Options FileInfo
+                  DirectoryIndex index.php
                   Require all granted
-                  AllowOverride all
               </Directory>
 
-              SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ PublicKey }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ PrivateKey }}
+              <Directory /var/www/wordpress/wp-content>
+                  Options FollowSymLinks
+                  Require all granted
+              </Directory>
           </VirtualHost>
-        dest: /etc/apache2/sites-available/wordpress.conf
+        dest: /etc/apache2/sites-enabled/wordpress.conf
         owner: root
         group: root
-        mode: '0644'
+        mode: "0644"
+      notify: Restart Apache2
 
     - name: Disable default Apache site
       become: true
-      ansible.builtin.command: a2dissite 000-default.conf
-      args:
-        removes: /etc/apache2/sites-enabled/000-default.conf
+      ansible.builtin.file:
+        path: /etc/apache2/sites-enabled/000-default.conf
+        state: absent
+      notify: Restart Apache2
 
-    - name: Enable Apache site
-      become: true
-      ansible.builtin.command: a2ensite wordpress.conf
-      args:
-        creates: /etc/apache2/sites-enabled/wordpress.conf
-
-    - name: Enabling apache mods
-      become: true
-      ansible.builtin.command: a2enmod ssl rewrite headers env dir mime
-
-    - name: Restart apache
-      become: true
-      ansible.builtin.service:
-        name: apache2
-        state: restarted
-
-
-    - name: Adding the config file
+    - name: Add WordPress config
       become: true
       ansible.builtin.file:
         state: touch
         path: /var/www/wordpress/wp-config.php
         owner: www-data
         group: www-data
-        mode: '0640'
+        mode: "0640"
 
-    - name: Setting up config file
+    - name: Configure WordPress config
       become: true
       ansible.builtin.copy:
         content: |
           <?php
           /** The name of the database for WordPress */
-          define( 'DB_NAME', '{{ database.name }}' );
+          define( 'DB_NAME', '{{ wordpress.database.name }}' );
 
           /** Database username */
-          define( 'DB_USER', '{{ database.user }}' );
+          define( 'DB_USER', '{{ wordpress.database.user }}' );
 
           /** Database password */
-          define( 'DB_PASSWORD', '{{ database.pass }}' );
+          define( 'DB_PASSWORD', '{{ wordpress.database.password }}' );
 
           /** Database hostname */
-          define( 'DB_HOST', '{{ database.host }}:{{ database.port }}' );
+          define( 'DB_HOST', '{{ wordpress.database.host }}:{{ wordpress.database.port }}' );
 
           /** Database charset to use in creating database tables. */
           define( 'DB_CHARSET', 'utf8mb4' );
@@ -147,17 +170,17 @@
           define( 'DB_COLLATE', '' );
 
           /** https://api.wordpress.org/secret-key/1.1/salt/ */
-          define( 'AUTH_KEY', '{{ AUTH_KEY }}' );
-          define( 'SECURE_AUTH_KEY', '{{ SECURE_AUTH_KEY }}' );
-          define( 'LOGGED_IN_KEY', '{{ LOGGED_IN_KEY }}' );
-          define( 'NONCE_KEY', '{{ NONCE_KEY }}' );
-          define( 'AUTH_SALT', '{{ AUTH_SALT }}' );
-          define( 'SECURE_AUTH_SALT', '{{ SECURE_AUTH_SALT }}' );
-          define( 'LOGGED_IN_SALT', '{{ LOGGED_IN_SALT }}' );
-          define( 'NONCE_SALT', '{{ NONCE_SALT }}' );
+          define( 'AUTH_KEY', '{{ wordpress.auth_key }}' );
+          define( 'SECURE_AUTH_KEY', '{{ wordpress.secure_auth_key }}' );
+          define( 'LOGGED_IN_KEY', '{{ wordpress.logged_in_key }}' );
+          define( 'NONCE_KEY', '{{ wordpress.nonce_key }}' );
+          define( 'AUTH_SALT', '{{ wordpress.auth_salt }}' );
+          define( 'SECURE_AUTH_SALT', '{{ wordpress.secure_auth_salt }}' );
+          define( 'LOGGED_IN_SALT', '{{ wordpress.logged_in_salt }}' );
+          define( 'NONCE_SALT', '{{ wordpress.nonce_salt }}' );
 
           $table_prefix = 'wp_';
-          define( 'WP_DEBUG', false );
+          define( 'WP_DEBUG', true );
 
           /* Add any custom values between this line and the "stop editing" line. */
 
@@ -180,14 +203,13 @@
           }
 
           /** Sets up WordPress vars and included files. */
-          require_once ABSPATH . 'wp-settings.php'
+          require_once ABSPATH . 'wp-settings.php';
         dest: /var/www/wordpress/wp-config.php
         owner: www-data
         group: www-data
-        mode: '0640'
+        mode: "0644"
 
-
-    - name: Setting up config file
+    - name: Configure Apache2 .htaccess file
       become: true
       ansible.builtin.copy:
         content: |
@@ -210,4 +232,11 @@
         dest: /var/www/wordpress/.htaccess
         owner: www-data
         group: www-data
-        mode: '0640'
+        mode: "0644"
+
+  handlers:
+    - name: Restart Apache2
+      become: true
+      ansible.builtin.service:
+        name: apache2
+        state: restarted

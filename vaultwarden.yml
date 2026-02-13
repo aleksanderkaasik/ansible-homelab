@@ -1,38 +1,59 @@
 ---
-- name: Installing vaultwarden
+- name: Running VaultWarden Playbook
   hosts: vaultwarden
   vars_files:
-    - variables/vaultwarden-config.yml
-    - variables/ssl-default-values.yml
+    - variable/main.yml
   tasks:
-    - name: Installing docker
+    - name: Install depe
+      become: true
+      ansible.builtin.apt:
+        name:
+          - python3-pymysql
+
+    - name: Import Docker install task
       ansible.builtin.include_tasks: tasks/docker-install.yml
 
-    - name: Installing ssl cert for https connection
+    - name: SSL certificate request generator
       ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
-      vars:
-        subject_alt_name_options:
-          - "DNS:{{ domain_name }}"
 
-    - name: Restart Docker service
+    - name: Create VaultWarden database
       become: true
-      ansible.builtin.service:
-        name: docker
-        state: restarted
+      community.mysql.mysql_db:
+        name: "{{ vault.db.name }}"
+        state: present
+        login_user: "{{ mysql.username }}"
+        login_password: "{{ mysql.password }}"
+        login_host: "{{ mysql.address }}"
+        login_port: "{{ mysql.port }}"
 
-    - name: Adding vaultwarden directory
+    - name: Create VaultWarden users
+      become: true
+      community.mysql.mysql_user:
+        login_user: "{{ mysql.username }}"
+        login_password: "{{ mysql.password }}"
+        login_host: "{{ mysql.address }}"
+        login_port: "{{ mysql.port }}"
+        column_case_sensitive: true
+        name: "{{ vault.db.user }}"
+        password: "{{ vault.db.password }}"
+        host: "%"
+        priv:
+          "{{ vault.db.name }}.*:ALL"
+        state: present
+
+    - name: Create VaultWarden directory
       become: true
       ansible.builtin.file:
         path: /var/opt/vaultwarden
         state: directory
         owner: root
         group: root
-        mode: '0640'
+        mode: "0640"
 
-    - name: Adding docker-composer file
+    - name: Create docker compose file
       become: true
       ansible.builtin.copy:
-        path: /var/opt/vaultwarden/docker-compose.yml
+        dest: /var/opt/vaultwarden/compose.yml
         content: |
           services:
             vaultwarden:
@@ -40,8 +61,8 @@
               container_name: vaultwarden
               restart: unless-stopped
               environment:
-                DATABASE_URL: "{{ database_connection_url }}"
-                ROCKET_TLS: '{certs="/etc/ssl/certs/{{ PublicKey }}", key="/etc/ssl/private/{{ PrivateKey }}"}'
+                DATABASE_URL: "{{ vault.db.engine }}://{{ vault.db.user }}:{{ vault.db.password }}@{{ vault.db.host }}:{{ vault.db.port }}/{{ vault.db.name }}"
+                ROCKET_TLS: '{certs="/etc/ssl/certs/{{ certificate.public_key }}", key="/etc/ssl/private/{{ certificate.private_key }}"}'
               volumes:
                 - ./vw-data/:/data/
                 - /etc/ssl:/etc/ssl
@@ -49,11 +70,11 @@
                 - 443:80
         owner: root
         group: root
-        mode: '0640'
+        mode: "0640"
 
-    - name: Deploying docker
+    - name: Deploy VaultWarden docker
       become: true
       community.docker.docker_compose_v2:
         project_src: /var/opt/vaultwarden
-        files: docker-compose.yml
+        files: compose.yml
         state: present

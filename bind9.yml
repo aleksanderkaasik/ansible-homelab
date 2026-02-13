@@ -1,28 +1,28 @@
 ---
-- name: Installing Bind9 dns server
+- name: Running Bind9 Playbook
   hosts: bind9
   vars_files:
-    - variables/bind9-config.yml
+    - variable/main.yml
   tasks:
-    - name: Installing bind9
+    - name: Install Bind9
       become: true
       ansible.builtin.apt:
         name:
           bind9
 
-    - name: Configuring bind9
+    - name: Configure Bind9
       become: true
       ansible.builtin.copy:
         content: |
           include "/etc/bind/named.conf.default-zones";
 
-          key "{{ tsig_name }}" {
-            algorithm {{ tsig_algorithm }};
-            secret "{{ tsig_key }}";
+          key "{{ bind9.tsig.name }}" {
+            algorithm {{ bind9.tsig.algorithm }};
+            secret "{{ bind9.tsig.key }}";
           };
 
           acl internal {
-            {% for cidr in cidr_list %}
+            {% for cidr in bind9.cidr_allowed_access_list %}
             {{ cidr }};
             {% endfor %}
           };
@@ -31,8 +31,8 @@
             directory "/var/cache/bind";
 
             forwarders {
-              {% for dns_forwarder in dns_forwarders %}
-              {{ dns_forwarder }};
+              {% for forwarder in bind9.forwarders %}
+              {{ forwarder }};
               {% endfor %}
             };
 
@@ -41,27 +41,28 @@
             listen-on-v6 { any; };
           };
 
-          {% for zone in forward_zone %}
-          zone "{{ zone }}" {
+          {% for forward_zone in bind9.forward_zones %}
+          zone "{{ forward_zone }}" {
             type master;
-            file "/var/lib/bind/db.{{ zone }}";
-            update-policy { grant {{ tsig_name }} zonesub any; };
+            file "/var/lib/bind/{{ forward_zone }}";
+            update-policy { grant {{ bind9.tsig.name }} zonesub any; };
           };
           {% endfor %}
 
-          {% for zone in reverse_zone %}
-          zone "{{ zone }}.in-addr.arpa" {
+          {% for reverse_zone in bind9.reverse_zones %}
+          zone "{{ reverse_zone }}" {
             type master;
-            file "/var/lib/bind/{{ zone }}.in-addr.arpa";
-            update-policy { grant {{ tsig_name }} zonesub any; };
+            file "/var/lib/bind/{{ reverse_zone }}";
+            update-policy { grant {{ bind9.tsig.name }} zonesub any; };
           };
           {% endfor %}
         dest: /etc/bind/named.conf
         owner: root
         group: bind
         mode: "0640"
+      notify: Restart Bind9
 
-    - name: Adding forward zones
+    - name: Configure forward zones
       become: true
       ansible.builtin.copy:
         content: |
@@ -74,33 +75,36 @@
               604800       ; Negative Cache TTL
           )
           @       IN      NS      ns.{{ item }}.
-          ns      IN      A       {{ ansible_all_ipv4_addresses }}
-        dest: /var/lib/bind/db.{{ item }}
+          ns      IN      A       {{ ip_address }}
+        dest: /var/lib/bind/{{ item }}
         owner: bind
         group: bind
         mode: "0640"
-      loop: "{{ forward_zone }}"
+      notify: Restart Bind9
+      loop: "{{ bind9.forward_zones }}"
 
-    - name: Adding reverse zones
+    - name: Configure reverse zones
       become: true
       ansible.builtin.copy:
         content: |
           $TTL 604800
-          @ IN SOA ns.{{ forward_zone[0] }}. root.{{ forward_zone[0] }}. (
+          @ IN SOA ns.{{ bind9.forward_zones[0] }}. root.{{ bind9.forward_zones[0] }}. (
                    2 ; Serial
               604800 ; Refresh
                86400 ; Retry
              2419200 ; Expire
               604800 ; Negative Cache TTL
           )
-          @       IN       NS       ns.{{ forward_zone[0] }}.
-        dest: /var/lib/bind/{{ item }}.in-addr.arpa
+          @       IN       NS       ns.{{ bind9.forward_zones[0] }}.
+        dest: /var/lib/bind/{{ item }}
         owner: bind
         group: bind
         mode: "0640"
-      loop: "{{ reverse_zone }}"
+      notify: Restart Bind9
+      loop: "{{ bind9.reverse_zones }}"
 
-    - name: Reloading Bind9
+  handlers:
+    - name: Restart Bind9
       become: true
       ansible.builtin.systemd_service:
         name: bind9.service

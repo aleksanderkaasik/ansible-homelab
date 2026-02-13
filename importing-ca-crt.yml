@@ -1,17 +1,19 @@
-- name: Installing Ca cert
+- name: Running CA certificate install Playbook
   hosts: all
+  vars_files:
+    - variable/main.yml
   tasks:
-    - name: Installing Ca cert
+    - name: Install Certificate Authority certificate
       become: true
-      ansible.builtin.copy:
-        src: files/ca.crt
+      ansible.builtin.get_url:
+        url: "{{ url.get_ca }}"
         dest: /usr/local/share/ca-certificates/PersonalCa.crt
         owner: root
         group: root
         mode: "0644"
-      notify: Reloading certs list
+      notify: Reload certificate list
 
   handlers:
-    - name: Reloading certs list
+    - name: Reload certificate list
       become: true
       ansible.builtin.command: update-ca-certificates

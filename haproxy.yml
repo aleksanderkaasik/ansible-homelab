@@ -1,47 +1,52 @@
 ---
-- name: Installing haproxy reverse proxy
+- name: Running HAProxy Playbook
   hosts: haproxy
   vars_files:
-    - variables/haproxy-config.yml
+    - variable/main.yml
   tasks:
-    - name: Installing haproxy
+    - name: Install HAProxy
       become: true
       ansible.builtin.apt:
         name:
           haproxy
 
-    - name: Adding Haproxy configuring
+    - name: Configure HAProxy
       become: true
       ansible.builtin.copy:
         content: |
+          defaults
+            timeout connect 10s
+            timeout client  1m
+            timeout server  1m
+
           frontend blocky
-          bind *:25565
-          mode tcp
-          tcp-request inspect-delay 5s
+            bind *:25565
+            mode tcp
+            tcp-request inspect-delay 5s
 
-          {% for server in backend_servers %}
-          acl is_{{ server.name }} payload(4, {{ server.domain | length + 1 }}) -m sub {{ server.domain }}
-          {% endfor %}
+            {% for traffic in haproxy.traffic %}acl is_{{ traffic.name }} payload(4,{{ traffic.domain | length + 1 }}) -m sub {{ traffic.domain }}
+            {% endfor %}
 
-          tcp-request content accept if {% for server in backend_servers -%}
-          is_{{ server.name }}{% if not loop.last %} | {% endif %}
-          {%- endfor %}
+            tcp-request content accept if {% for traffic in haproxy.traffic %}
+            is_{{ traffic.name }}{% if not loop.last %} or {% endif %}
+            {% endfor %}
 
+            {% for traffic in haproxy.traffic %}
+            use_backend {{ traffic.name }}_backend if is_{{ traffic.name }}
+            {% endfor %}
 
-          {% for server in backend_servers %}use_backend {{ server.name }}_backend if is_{{ server.name }}
-          {% endfor %}
-
-          {% for server in backend_servers %}
-          backend {{ server.name }}_backend
-            server {{ server.name }} {{ server.address }}
-
+          {% for traffic in haproxy.traffic %}
+          backend {{ traffic.name }}_backend
+            server {{ traffic.name }} {{ traffic.address }}
           {% endfor %}
         dest: /etc/haproxy/haproxy.cfg
         owner: root
         group: root
         mode: "0640"
+      notify: Restart HAProxy
 
-    - name: Restart haproxy
+  handlers:
+    - name: Restart HAProxy
       become: true
       ansible.builtin.systemd_service:
         name: haproxy.service

@@ -1,6 +1,0 @@
-backend_servers:
-  - {
-    name: ,
-    address: ,
-    domain: ,
-  }
