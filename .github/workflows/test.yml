@@ -3,12 +3,11 @@ name: CI
 on:
   pull_request:
   push:
-    branches:
-      - "testing"
 
 defaults:
   run:
     working-directory: ./scripts
+
 jobs:
   release:
     name: Release
@@ -41,8 +40,10 @@ jobs:
           python-version: '3.13'
 
       - name: Install test dependencies.
-        run: pip3 install yamllint
+        run: pip install ansible ansible-lint yamllint
 
-      - name: Lint code.
-        run: |
-          yamllint .
+      - name: Checking linting on workflow
+        run: yamllint .\.github\workflows\.
+
+      - name: Checking linting on workflow
+        run: ansible-lint .
