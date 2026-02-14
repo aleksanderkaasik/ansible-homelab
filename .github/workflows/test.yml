@@ -43,7 +43,7 @@ jobs:
         run: pip install ansible ansible-lint yamllint
 
       - name: Checking linting on workflow
-        run: yamllint .\.github\workflows\.
+        run: yamllint .github/workflows/
 
       - name: Checking linting on workflow
         run: ansible-lint .
