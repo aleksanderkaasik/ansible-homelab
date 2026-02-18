@@ -1,3 +1,4 @@
+---
 - name: Generate Private key
   become: true
   community.crypto.openssl_privatekey:
@@ -25,28 +26,28 @@
     src: "/etc/ssl/{{ item.domain_name }}.csr"
   register: csr_data
 
-- name: Getting certificates list
+- name: Getting certificates list from cloudflare
   ansible.builtin.uri:
-    url: https://api.cloudflare.com/client/v4/certificates?zone_id={{ cloudflare_zones[item.domain_name.split('.')[-2:] | join('.')] }}
+    url: https://api.cloudflare.com/client/v4/certificates?zone_id={{ nginx.cloudflare.zones[item.domain_name.split('.')[-2:] | join('.')] }}
     method: GET
     body_format: json
     headers:
       Content-Type: application/json
-      Authorization: Bearer {{ cloudflare_api_token }}
+      Authorization: Bearer {{ nginx.cloudflare.api_token }}
     return_content: true
   register: certificates_list
 
 - name: Extract hostnames
   ansible.builtin.set_fact:
-    cloudflare_hostname_list: "{{ certificates_list.json | community.general.json_query('result[*].hostnames[0]') }}"
+    cloudflare_hostname_list: "{{ certificates_list.json | default([]) | community.general.json_query('result[*].hostnames[0]') }}"
 
 - name: Request new certificate
   ansible.builtin.uri:
-    url: "https://api.cloudflare.com/client/v4/certificates?zone_id={{ cloudflare_zones[item.domain_name.split('.')[-2:] | join('.')] }}"
+    url: "https://api.cloudflare.com/client/v4/certificates?zone_id={{ nginx.cloudflare.zones[item.domain_name.split('.')[-2:] | join('.')] }}"
     method: POST
     headers:
       Content-Type: application/json
-      Authorization: "Bearer {{ cloudflare_api_token }}"
+      Authorization: "Bearer {{ nginx.cloudflare.api_token }}"
     body_format: json
     body:
       csr: "{{ csr_data.content | b64decode }}"
@@ -66,6 +67,7 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Restart nginx
   when: "item.domain_name not in cloudflare_hostname_list"
 
 - name: Deploy nginx config
@@ -94,3 +96,4 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Restart nginx

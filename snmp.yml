@@ -1,17 +1,24 @@
 ---
-- name: Installing zabbix server
+- name: Running SNMP Playbook
   hosts: all
   vars_files:
-    - variables/snmp-config.yml
+    - variables/main.yml
   tasks:
-    - name: Install snmp
+    - name: Install SNMP
       become: true
       ansible.builtin.apt:
         name:
           - snmpd
           - libsnmp-dev
 
-    - name: Setting up snmp config
+    - name: Enable SNMPD
+      become: true
+      ansible.builtin.service:
+        name: snmpd
+        state: started
+        enabled: true
+
+    - name: Configure SNMP
       become: true
       ansible.builtin.copy:
         content: |
@@ -25,8 +32,7 @@
           view   systemonly  included   .1.3.6.1.2.1.1
           view   systemonly  included   .1.3.6.1.2.1.25.1
 
-          rocommunity {{ community_string }} {{ allowed_address }}
-          rocommunity6 {{ community_string }} {{ allowed_address }}
+          rocommunity {{ snmp.community_string }} {{ snmp.listening_address }}
 
           rouser authPrivUser authpriv -V systemonly
 
@@ -35,10 +41,11 @@
         owner: root
         group: Debian-snmp
         mode: "0640"
+      notify: Restart SNMPD
 
-    - name: Restart snmpd
+  handlers:
+    - name: Restart SNMPD
       become: true
       ansible.builtin.service:
         name: snmpd
         state: restarted
-        enabled: true

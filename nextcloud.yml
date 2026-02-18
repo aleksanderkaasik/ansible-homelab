@@ -1,11 +1,10 @@
 ---
-- name: Installing NextCloud
+- name: Running NextCloud Playbook
   hosts: nextcloud
   vars_files:
-    - variables/nextcloud-config.yml
-    - variables/ssl-default-values.yml
+    - variables/main.yml
   tasks:
-    - name: Installing PHP modules
+    - name: Install PHP modules dependency and Apache2
       become: true
       ansible.builtin.apt:
         name:
@@ -21,121 +20,179 @@
           - php-imagick
           - php-zip
           - zip
+          - apache2
+          - python3-pymysql
+          # Security
+          - libmagickcore-6.q16-6-extra
 
-    - name: Getting the install script
+
+    - name: Enable apache
+      become: true
+      ansible.builtin.service:
+        name: apache2
+        state: started
+        enabled: true
+
+    - name: Download NextCloud install script
       become: true
       ansible.builtin.get_url:
         url: https://download.nextcloud.com/server/releases/latest.zip
         dest: /tmp/
         mode: "0655"
 
-
-    - name: Extracting file
+    - name: Extract NextCloud files
       become: true
       ansible.builtin.unarchive:
         remote_src: true
         src: /tmp/latest.zip
-        dest: "{{ nextcloud_path }}"
+        dest: "/var/www"
         owner: www-data
         group: www-data
 
-    - name: Installing ssl cert for https connection
+    - name: SSL certificate request generator
       ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
-      vars:
-        subject_alt_name_options:
-          - "DNS:{{ domain_name }}"
-          - "IP:{{ ip_address }}"
 
-
-    - name: Installing PHP modules
+    - name: Enable apache mods for https
       become: true
-      ansible.builtin.apt:
-        name:
-          apache2
+      community.general.apache2_module:
+        state: present
+        name: "{{ item }}"
+      notify: Restart Apache2
+      loop:
+        - ssl
+        - rewrite
+        - headers
+        - env
+        - dir
+        - mime
 
     - name: Adding apache config
       become: true
       ansible.builtin.copy:
         content: |
           <VirtualHost *:80>
+            ServerName {{ domain_name }}
+
             RewriteEngine On
             RewriteCond %{HTTPS} !=on
             RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]
           </VirtualHost>
 
           <VirtualHost *:443>
-              DocumentRoot "{{ nextcloud_path }}/nextcloud"
+            ServerName {{ domain_name }}
+            DocumentRoot "/var/www/nextcloud"
 
-              AllowEncodedSlashes On
+            php_value max_execution_time 1024M
+            php_value memory_limit 1024M
+            php_value opcache.enable 1
+            php_value upload_tmp_dir 1024M
 
-              php_value upload_max_filesize 100M
-              php_value post_max_size 100M
+            <Directory /var/www/nextcloud/>
+              Require all granted
+              AllowOverride All
+              Options FollowSymLinks MultiViews
 
-              <Directory "{{ nextcloud_path }}/nextcloud">
-                  Require all granted
-                  AllowOverride all
-              </Directory>
+              <IfModule mod_dav.c>
+                Dav off
+              </IfModule>
+            </Directory>
 
               SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ PublicKey }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ PrivateKey }}
-          </VirtualHost>
-        dest: /etc/apache2/sites-available/nextcloud.conf
+              SSLCertificateFile /etc/ssl/certs/{{ certificate.public_key }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ certificate.private_key }}
+            </VirtualHost>
+        dest: /etc/apache2/sites-enabled/nextcloud.conf
         owner: root
         group: root
-        mode: '0644'
+        mode: "0644"
+      notify: Restart Apache2
 
     - name: Disable default Apache site
       become: true
-      ansible.builtin.command: a2dissite 000-default.conf
-      args:
-        removes: /etc/apache2/sites-enabled/000-default.conf
+      ansible.builtin.file:
+        path: /etc/apache2/sites-enabled/000-default.conf
+        state: absent
+      notify: Restart Apache2
 
-    - name: Enable Apache site
+    - name: Create NextCloud database
       become: true
-      ansible.builtin.command: a2ensite nextcloud.conf
-      args:
-        creates: /etc/apache2/sites-enabled/nextcloud.conf
+      community.mysql.mysql_db:
+        name: "{{ nextcloud.database.name }}"
+        state: present
+        login_user: "{{ mysql.username }}"
+        login_password: "{{ mysql.password }}"
+        login_host: "{{ mysql.address }}"
+        login_port: "{{ mysql.port }}"
+        encoding: utf8mb4
+        collation: utf8mb4_bin
 
-    - name: Enabling apache mods
+    - name: Create MySQL users
       become: true
-      ansible.builtin.command: a2enmod ssl rewrite headers env dir mime
+      community.mysql.mysql_user:
+        login_user: "{{ mysql.username }}"
+        login_password: "{{ mysql.password }}"
+        login_host: "{{ mysql.address }}"
+        login_port: "{{ mysql.port }}"
+        column_case_sensitive: true
+        name: "{{ nextcloud.database.user }}"
+        password: "{{ nextcloud.database.password }}"
+        host: "%"
+        priv:
+          "{{ nextcloud.database.name }}.*:ALL"
+        state: present
 
-    - name: Restart apache
+    - name: Check if Nextcloud is already installed
+      become: true
+      ansible.builtin.stat:
+        path: "/var/www/nextcloud/config/config.php"
+      register: nextcloud_config
+
+    - name: Generating config file and database
+      ansible.builtin.command: >
+        sudo -u www-data php occ maintenance:install
+        --database "{{ nextcloud.database.engine }}"
+        --database-host "{{ nextcloud.database.host }}"
+        --database-port "{{ nextcloud.database.port }}"
+        --database-name "{{ nextcloud.database.name }}"
+        --database-user "{{ nextcloud.database.user }}"
+        --database-pass "{{ nextcloud.database.password }}"
+        --admin-user "{{ nextcloud.admin.user }}"
+        --admin-pass "{{ nextcloud.admin.password }}"
+      args:
+        chdir: "/var/www/nextcloud"
+      when: not nextcloud_config.stat.exists
+      changed_when: false
+
+
+    - name: Create Empty directory
+      become: true
+      ansible.builtin.file:
+        state: directory
+        dest: /var/www/nextcloud/core/skeleton/empty
+        owner: www-data
+        group: www-data
+        mode: "755"
+      notify: Remove Demo files
+
+    - name: Setting trusted domains
+      ansible.builtin.command: >
+        sudo -u www-data php occ config:system:set trusted_domains "{{ trusted_domains_index }}" --value="{{ item }}"
+      args:
+        chdir: "/var/www/nextcloud"
+      loop: "{{ nextcloud.trusted_domains }}"
+      loop_control:
+        index_var: trusted_domains_index
+      changed_when: false
+
+  handlers:
+    - name: Restart Apache2
       become: true
       ansible.builtin.service:
         name: apache2
         state: restarted
 
-    - name: Check if Nextcloud is already installed
-      become: true
-      ansible.builtin.stat:
-        path: "{{ nextcloud_path }}/nextcloud/config/config.php"
-      register: nextcloud_config
-
-    - name: Generating config file and database
-      become: true
+    - name: Remove Demo files
       ansible.builtin.command: >
-        sudo -u www-data php occ maintenance:install
-        --database "{{ database_connection.type }}"
-        --database-host "{{ database_connection.host }}"
-        --database-port "{{ database_connection.port }}"
-        --database-name "{{ database_connection.name }}"
-        --database-user "{{ database_connection.user }}"
-        --database-pass "{{ database_connection.password }}"
-        --admin-user "{{ admin_credential.user }}"
-        --admin-pass "{{ admin_credential.password }}"
+        sudo -u www-data php occ config:app:set name skeletondirectory --value "/var/www/nextcloud/core/skeleton/empty"
       args:
-        chdir: "{{ nextcloud_path }}/nextcloud"
-      when: not nextcloud_config.stat.exists
-
-    - name: Setting trusted domains
-      become: true
-      ansible.builtin.command: >
-        sudo -u www-data php occ config:system:set
-        trusted_domains "{{ trusted_domains_index }}" --value="{{ item }}"
-      args:
-        chdir: "{{ nextcloud_path }}/nextcloud"
-      loop: "{{ trusted_domains }}"
-      loop_control:
-        index_var: trusted_domains_index
+        chdir: "/var/www/nextcloud"

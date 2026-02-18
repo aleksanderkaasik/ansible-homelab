@@ -1,0 +1,375 @@
+---
+- name: Running Pterodactyl Panel Playbook
+  hosts: pterodactyl-panel
+  vars_files:
+    - variables/main.yml
+  tasks:
+    - name: Install general dependencies, PHP and PHP dependencies
+      become: true
+      ansible.builtin.apt:
+        name:
+          - software-properties-common
+          - curl
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          # Install PHP and PHP dependency
+          - php
+          - php-cli
+          - php-gd
+          - php-mysql
+          - php-mbstring
+          - php-tokenizer
+          - php-bcmath
+          - php-xml
+          - php-dom
+          - php-curl
+          - php-zip
+          - openssl
+          - curl
+          - tar
+          - unzip
+          - git
+          - mysql-client
+          - apache2
+          - python3-pymysql
+
+    - name: Download Composer installer
+      ansible.builtin.get_url:
+        url: https://getcomposer.org/installer
+        dest: /tmp/composer-setup.php
+        mode: "0755"
+
+    - name: Install Composer
+      become: true
+      ansible.builtin.command:
+        cmd: php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+        creates: /usr/local/bin/composer
+
+    - name: Remove Composer installer
+      ansible.builtin.file:
+        path: /tmp/composer-setup.php
+        state: absent
+
+    - name: Create Pterodactyl Directory
+      become: true
+      ansible.builtin.file:
+        state: directory
+        path: /var/www/pterodactyl
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Download Pterodactyl
+      become: true
+      ansible.builtin.get_url:
+        url: https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
+        dest: /tmp
+        force: true
+        mode: "0755"
+
+    - name: Extract Pterodactyl from archive
+      become: true
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: /tmp/panel.tar.gz
+        dest: /var/www/pterodactyl
+        owner: root
+        group: root
+
+    - name: Change permissions
+      become: true
+      ansible.builtin.file:
+        path: "/var/www/pterodactyl/{{ item }}"
+        mode: "0755"
+        owner: root
+        group: root
+      loop:
+        - bootstrap/cache/
+        - storage/
+
+    - name: Modify UI to show only host of the game server
+      become: true
+      ansible.builtin.replace:
+        path: /var/www/pterodactyl/resources/scripts/components/server/console/ServerDetailsBlock.tsx
+        regexp: ':\$\{match\.port\}'
+        replace: ''
+
+
+    - name: Create Pterodactyl database
+      become: true
+      community.mysql.mysql_db:
+        name: "{{ pterodactyl.panel.database.name }}"
+        state: present
+        login_user: "{{ mysql.username }}"
+        login_password: "{{ mysql.password }}"
+        login_host: "{{ mysql.address }}"
+        login_port: "{{ mysql.port }}"
+        encoding: utf8mb4
+        collation: utf8mb4_bin
+      notify: Migrate Database
+
+    - name: Create MySQL users
+      become: true
+      community.mysql.mysql_user:
+        login_user: "{{ mysql.username }}"
+        login_password: "{{ mysql.password }}"
+        login_host: "{{ mysql.address }}"
+        login_port: "{{ mysql.port }}"
+        column_case_sensitive: true
+        name: "{{ pterodactyl.panel.database.user }}"
+        password: "{{ pterodactyl.panel.database.password }}"
+        host: "%"
+        priv:
+          "{{ pterodactyl.panel.database.name }}.*:ALL"
+        state: present
+
+    - name: Create .env file
+      become: true
+      ansible.builtin.copy:
+        remote_src: true
+        src: /var/www/pterodactyl/.env.example
+        dest: /var/www/pterodactyl/.env
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Configure env file
+      become: true
+      ansible.builtin.lineinfile:
+        path: /var/www/pterodactyl/.env
+        regexp: "{{ item.option }}"
+        line: "{{ item.option }}={{ item.value }}"
+      notify: Restart Pterodactyl
+      loop:
+        - { option: APP_ENV, value: "{{ pterodactyl.panel.app.env }}" }
+        - { option: APP_DEBUG, value: "{{ pterodactyl.panel.app.debug }}" }
+        - { option: APP_KEY, value: "{{ pterodactyl.panel.app.key }}" }
+        - { option: APP_THEME, value: "{{ pterodactyl.panel.app.theme }}" }
+        - { option: APP_TIMEZONE, value: "{{ pterodactyl.panel.app.timezone }}" }
+        - { option: APP_URL, value: "{{ pterodactyl.panel.app.url }}" }
+        - { option: APP_LOCALE, value: "{{ pterodactyl.panel.app.locale }}" }
+        - { option: APP_ENVIRONMENT_ONLY, value: "{{ pterodactyl.panel.app.environment_only }}" }
+
+        - { option: DB_CONNECTION, value: "{{ pterodactyl.panel.database.engine }}" }
+        - { option: DB_HOST, value: "{{ pterodactyl.panel.database.host }}" }
+        - { option: DB_PORT, value: "{{ pterodactyl.panel.database.port }}" }
+        - { option: DB_DATABASE, value: "{{ pterodactyl.panel.database.name }}" }
+        - { option: DB_USERNAME, value: "{{ pterodactyl.panel.database.user }}" }
+        - { option: DB_PASSWORD, value: "{{ pterodactyl.panel.database.password }}" }
+
+        - { option: REDIS_HOST, value: "{{ pterodactyl.panel.redis.host }}" }
+        - { option: REDIS_PORT, value: "{{ pterodactyl.panel.redis.port }}" }
+        - { option: REDIS_PASSWORD, value: "{{ pterodactyl.panel.redis.password }}" }
+
+    # php artisan p:environment:mail
+
+    - name: Install required packages
+      become: true
+      ansible.builtin.apt:
+        name:
+          - curl
+          - gpg
+        state: present
+
+    - name: Add Redis upstream GPG key
+      become: true
+      ansible.builtin.apt_key:
+        url: https://packages.redis.io/gpg
+        keyring: /usr/share/keyrings/redis-archive-keyring.gpg
+        state: present
+
+    - name: Add Redis APT repository
+      become: true
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb {{ ansible_distribution_release }} main"
+        filename: redis
+        update_cache: true
+
+    - name: Install Redis
+      become: true
+      ansible.builtin.apt:
+        name: redis
+        state: present
+
+    - name: Enable Redis
+      become: true
+      ansible.builtin.service:
+        name: redis-server
+        state: started
+        enabled: true
+
+    - name: Configure Redis file
+      become: true
+      ansible.builtin.lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: "^{{ item.option }}.*"
+        line: "{{ item.option }} {{ item.value }}"
+      notify: Restart Redis
+      loop:
+        - { option: bind, value: "{{ pterodactyl.panel.redis.host }}" }
+        - { option: port, value: "{{ pterodactyl.panel.redis.port }}" }
+        - { option: requirepass, value: "{{ pterodactyl.panel.redis.password }}" }
+
+    - name: Install pacakge of composer
+      become: true
+      community.general.composer:
+        command: install
+        optimize_autoloader: true
+        no_dev: true
+        working_dir: /var/www/pterodactyl
+      environment:
+        COMPOSER_NO_INTERACTION: "1"
+        COMPOSER_ALLOW_SUPERUSER: "1"
+
+    - name: Import NodeJS Install
+      ansible.builtin.include_tasks: tasks/nodejs-install.yml
+
+    - name: Install Yarn globally using npm
+      become: true
+      community.general.npm:
+        name: yarn
+        global: true
+        state: present
+
+    # - name: Install project dependencies
+    #   become: true
+    #   ansible.builtin.command: yarn "{{ item }}"
+    #   notify: Restart Pterodactyl
+    #   args:
+    #     chdir: "/var/www/pterodactyl"
+    #   loop:
+    #     - install
+    #     - build
+
+    - name: Install packages based on package.json.
+      become: true
+      community.general.yarn:
+        path: "/var/www/pterodactyl"
+
+    - name: Set Permissions
+      become: true
+      ansible.builtin.file:
+        state: directory
+        path: /var/www/pterodactyl
+        owner: www-data
+        group: www-data
+        recurse: true
+
+    - name: Configure Pterodactyl systemd service
+      become: true
+      ansible.builtin.copy:
+        content: |
+          # Pterodactyl Queue Worker File
+          # ----------------------------------
+
+          [Unit]
+          Description=Pterodactyl Queue Worker
+          After=redis-server.service
+
+          [Service]
+          # On some systems the user and group might be different.
+          # Some systems use `apache` or `nginx` as the user and group.
+          User=www-data
+          Group=www-data
+          Restart=always
+          ExecStart=/usr/bin/php /var/www/pterodactyl/artisan queue:work --queue=high,standard,low --sleep=3 --tries=3
+          StartLimitInterval=180
+          StartLimitBurst=30
+          RestartSec=5s
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/pteroq.service
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart daemon reload
+
+    - name: Installing ssl cert for https connection
+      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
+
+    - name: Enable apache mods for https
+      become: true
+      community.general.apache2_module:
+        state: present
+        name: "{{ item }}"
+      notify: Restart Apache2
+      loop:
+        - ssl
+        - rewrite
+        - headers
+        - env
+        - dir
+        - mime
+
+    - name: Adding apache config
+      become: true
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:80>
+            ServerName {{ domain_name }}
+            RewriteEngine On
+            RewriteCond %{HTTPS} !=on
+            RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]
+          </VirtualHost>
+
+          <VirtualHost *:443>
+              DocumentRoot "/var/www/pterodactyl/public"
+
+              AllowEncodedSlashes On
+
+              php_value upload_max_filesize 100M
+              php_value post_max_size 100M
+
+              <Directory "/var/www/pterodactyl/public">
+                  Require all granted
+                  AllowOverride all
+              </Directory>
+
+              SSLEngine on
+              SSLCertificateFile /etc/ssl/certs/{{ certificate.public_key }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ certificate.private_key }}
+          </VirtualHost>
+        dest: /etc/apache2/sites-enabled/pterodactyl.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Apache2
+
+    - name: Disable default Apache site
+      become: true
+      ansible.builtin.file:
+        path: /etc/apache2/sites-enabled/000-default.conf
+        state: absent
+      notify: Restart Apache2
+
+  handlers:
+    - name: Restart Apache2
+      become: true
+      ansible.builtin.service:
+        name: apache2
+        state: restarted
+
+    - name: Restart Pterodactyl
+      become: true
+      ansible.builtin.service:
+        name: pteroq.service
+        state: restarted
+
+    - name: Restart Redis
+      become: true
+      ansible.builtin.service:
+        name: redis-server
+        state: restarted
+
+    - name: Restart daemon reload
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Migrate Database
+      become: true
+      ansible.builtin.command: php artisan migrate --seed --force
+      args:
+        chdir: "/var/www/pterodactyl"

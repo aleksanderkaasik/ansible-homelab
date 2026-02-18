@@ -1,104 +1,114 @@
 ---
-- name: Installing PKI server
+- name: Running PKI Server Playbook
   hosts: pki-server
   vars_files:
-    - variables/pki-server-config.yml
-    - variables/credentials.yml
-
+    - variables/main.yml
   tasks:
-    - name: Installing needed dependencies on ubuntu
+    - name: Install needed dependencies
       become: true
       ansible.builtin.apt:
         name:
           - git
+          - python3-cryptography
 
-    - name: Installing NodeJS
+    - name: Import NodeJS Install
       ansible.builtin.include_tasks: tasks/nodejs-install.yml
 
-    - name: Cloning PKI API SERVER
+    - name: Git cloning RESTingCertCall code base
       become: true
       ansible.builtin.git:
-        repo: "{{ git_repo_link }}"
-        dest: "{{ project_path }}"
+        repo: https://github.com/aleksanderkaasik/RESTingCertCall.git
+        dest: /var/opt/RESTingCertCall
         version: main
         update: true
         force: true
 
-    - name: Changing permissions
+    - name: Change permissions
       become: true
       ansible.builtin.file:
-        path: "{{ project_path }}"
-        owner: "{{ remote_ansible_user }}"
+        path: /var/opt/RESTingCertCall
+        owner: "{{ ansible.user }}"
         group: root
         mode: "0740"
         recurse: true
 
-    - name: Creating env file
+    - name: Create env file
       become: true
       ansible.builtin.copy:
         remote_src: true
-        src: "{{ project_path }}/.envExample"
-        dest: "{{ project_path }}/.env"
-        owner: "{{ remote_ansible_user }}"
+        src: /var/opt/RESTingCertCall/.envExample
+        dest: /var/opt/RESTingCertCall/.env
+        owner: "{{ ansible.user }}"
         group: root
         mode: "0740"
 
     - name: Setting up password to the root password
       ansible.builtin.lineinfile:
-        path: "{{ project_path }}/.env"
+        path: /var/opt/RESTingCertCall/.env
         regexp: "{{ item.regex }}"
         line: "{{ item.value }}"
+      notify: Restart RESTingCertCall
       loop:
-        - { regex: "^CA_root_password", value: "CA_root_password={{ ca_cert_passphrase }}" }
-        - { regex: "^node_hostname", value: "node_hostname={{ nodejs_hostname }}" }
-        - { regex: "^node_port", value: "node_port={{ nodejs_port }}" }
+        - { regex: "^CA_root_password", value: "CA_root_password={{ pki.ca_cert_passphrase }}" }
+        - { regex: "^node_hostname", value: "node_hostname={{ pki.nodejs.hostname }}" }
+        - { regex: "^node_port", value: "node_port={{ pki.nodejs.port }}" }
 
     - name: Creating directories for the project
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        owner: "{{ remote_ansible_user }}"
-        group: root
+        owner: "{{ ansible.user }}"
         mode: "0740"
       loop:
-        - "{{ project_path }}/ca"
-        - "{{ project_path }}/reqs"
-        - "{{ project_path }}/issued"
+        - /var/opt/RESTingCertCall/ca
+        - /var/opt/RESTingCertCall/reqs
+        - /var/opt/RESTingCertCall/issued
 
-    - name: Generate CA private key (if not existing)
-      ansible.builtin.command: >
-        openssl genrsa
-        -aes256
-        -passout pass:"{{ ca_cert_passphrase }}"
-        -out "{{ project_path }}/ca/ca-key.pem"
-        4096
-      args:
-        creates: "{{ project_path }}/ca/ca-key.pem"
+    - name: Generate CA Private Key
+      community.crypto.openssl_privatekey:
+        passphrase: "{{ pki.ca_cert_passphrase }}"
+        path: /var/opt/RESTingCertCall/ca/ca.key
+        size: 4096
+        type: RSA
+        mode: "0740"
 
-    - name: Generate CA self-signed certificate (if not existing)
-      ansible.builtin.command: >
-        openssl req -x509 -new -nodes
-        -key "{{ project_path }}/ca/ca-key.pem"
-        -days 365
-        -out "{{ project_path }}/ca/ca.crt"
-        -subj "/C={{ country }}/ST={{ country_state }}/L={{ city }}/O={{ organization }}/OU={{ organizational_unit }}/CN={{ common_name }}"
-        -passin pass:"{{ ca_cert_passphrase }}"
-      args:
-        creates: "{{ project_path }}/ca/ca.crt"
+    - name: Generate CA self-signed certificate
+      community.crypto.openssl_csr_pipe:
+        privatekey_path: /var/opt/RESTingCertCall/ca/ca.key
+        privatekey_passphrase: "{{ pki.ca_cert_passphrase }}"
+        country_name: "{{ certificate.subject.country }}"
+        state_or_province_name: "{{ certificate.subject.state }}"
+        locality_name: "{{ certificate.subject.city }}"
+        organization_name: "{{ certificate.subject.organization }}"
+        organizational_unit_name: "{{ certificate.subject.organizational_unit }}"
+        common_name: "{{ certificate.subject.common_name }}"
+        subject_alt_name:
+          - "DNS:{{ domain_name }}"
+          - "IP:{{ ip_address }}"
+        use_common_name_for_san: false
+        basic_constraints:
+          - 'CA:TRUE'
+        basic_constraints_critical: true
+        key_usage:
+          - keyCertSign
+        key_usage_critical: true
+      register: ca
 
-    - name: Set permissions on CA key and certificate
-      ansible.builtin.file:
-        path: "{{ item.location }}"
-        mode: "{{ item.permission }}"
-      loop:
-        - { location: "{{ project_path }}/ca/ca-key.pem", permission: "0400" }
-        - { location: "{{ project_path }}/ca/ca.crt", permission: "0440" }
+    - name: Generate an OpenSSL certificate signed with your own CA certificate
+      community.crypto.x509_certificate:
+        csr_content: "{{ ca.csr }}"
+        provider: selfsigned
+        path: /var/opt/RESTingCertCall/ca/ca.crt
+        privatekey_path: /var/opt/RESTingCertCall/ca/ca.key
+        privatekey_passphrase: "{{ pki.ca_cert_passphrase }}"
+        ownca_not_after: "+1825d"
+        ownca_not_before: "-1d"
 
     - name: Installing npm dependencies
       community.general.npm:
-        path: "{{ project_path }}"
+        path: "/var/opt/RESTingCertCall"
 
-    - name: Adding a systemd services
+    - name: Add a systemd services
       become: true
       ansible.builtin.copy:
         content: |
@@ -106,19 +116,34 @@
           After=network.target
 
           [Service]
-          Type=simple
-          WorkingDirectory={{ project_path }}
           ExecStart=/usr/bin/node --env-file=.env index.js
-          Restart=on-failure
+          Restart=always
+          User={{ ansible.user }}
+          Group=nogroup
+          Type=simple
+          WorkingDirectory=/var/opt/RESTingCertCall
 
           [Install]
           WantedBy=multi-user.target
-        dest: "/etc/systemd/system/{{ project_name }}.service"
+        dest: "/etc/systemd/system/RESTingCertCall.service"
         mode: "0555"
+      notify: Restart daemon
 
-    - name: Starting the project service
+    - name: Enable RESTingCertCall service
       become: true
       ansible.builtin.systemd:
-        state: restarted
+        state: started
         enabled: true
-        name: "{{ project_name }}.service"
+        name: RESTingCertCall.service
+
+  handlers:
+    - name: Restart daemon
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart RESTingCertCall
+      become: true
+      ansible.builtin.service:
+        name: RESTingCertCall.service
+        state: restarted

@@ -1,28 +1,26 @@
 ---
-- name: Installing pterodactyl panel
+- name: Running Pterodactyl Wing Playbook
   hosts: pterodactyl-wing
   vars_files:
-    - variables/pterodactyl_wing.yml
-    - variables/ssl-default-values.yml
+    - variables/main.yml
   tasks:
-    - name: Installing dependency
+    - name: Install dependency
       become: true
       ansible.builtin.apt:
         name:
           - curl
 
-    - name: Installing docker
+    - name: Import Docker install playbook
       ansible.builtin.include_tasks: tasks/docker-install.yml
 
-
-    - name: Download Pterodactyl Wings
+    - name: Download Pterodactyl Wings binary
       become: true
       ansible.builtin.get_url:
         url: "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}"
         dest: /usr/local/bin/wings
-        mode: '0755'
+        mode: "0755"
 
-    - name: Adding pterodactyl directory
+    - name: Adding Pterodactyl directory
       become: true
       ansible.builtin.file:
         state: directory
@@ -31,15 +29,10 @@
         group: root
         mode: "0640"
 
-
     - name: Installing ssl cert for https connection
       ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
-      vars:
-        subject_alt_name_options:
-          - "DNS:{{ domain_name }}"
-          - "IP:{{ ip_address }}"
 
-    - name: Adding pterodactyl directory
+    - name: Add pterodactyl directory
       become: true
       ansible.builtin.copy:
         content: |
@@ -52,21 +45,22 @@
             port: 8080
             ssl:
               enabled: true
-              cert: /etc/ssl/certs/{{ PublicKey }}
-              key: /etc/ssl/private/{{ PrivateKey }}
+              cert: /etc/ssl/certs/{{ certificate.public_key }}
+              key: /etc/ssl/private/{{ certificate.private_key }}
             upload_limit: 100
           system:
             data: /var/lib/pterodactyl/volumes
             sftp:
               bind_port: 2022
           allowed_mounts: []
-          remote: '{{ remote_server }}'
+          remote: '{{ pterodactyl.wing.remote_server }}'
         dest: /etc/pterodactyl/config.yml
         owner: root
         group: root
         mode: "0640"
+      notify: Restart Pterodactyl Wing
 
-    - name: Adding pterodactyl directory
+    - name: Add pterodactyl directory
       become: true
       ansible.builtin.copy:
         content: |
@@ -93,10 +87,23 @@
         owner: root
         group: root
         mode: "0755"
+      notify: Restart daemon reload
 
     - name: Starting the project service
       become: true
       ansible.builtin.systemd:
-        state: restarted
+        state: started
         enabled: true
         name: wings.service
+
+  handlers:
+    - name: Restart Pterodactyl Wing
+      become: true
+      ansible.builtin.systemd:
+        state: restarted
+        name: wings.service
+
+    - name: Restart daemon reload
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: true

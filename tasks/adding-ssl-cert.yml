@@ -1,73 +1,65 @@
 ---
-- name: Installing cryptography dependencies
+- name: Install needed dependencies
   become: true
   ansible.builtin.apt:
     name:
       - python3-cryptography
 
-- name: Generate Private key
+- name: Generate Private Key
+  become: true
   community.crypto.openssl_privatekey:
-    path: "{{ PrivateKey }}"
+    path: "/etc/ssl/private/{{ certificate.private_key }}"
     size: 4096
     type: RSA
-    mode: "0600"
+    owner: root
+    group: "ssl-cert"
+    mode: "0640"
 
 - name: Generate CSR
+  become: true
   community.crypto.openssl_csr:
-    path: "{{ CertificateSigningRequest }}"
-    privatekey_path: "{{ PrivateKey }}"
-    country_name: "{{ country }}"
-    state_or_province_name: "{{ country_state }}"
-    locality_name: "{{ city }}"
-    organization_name: "{{ organizational_unit }}"
-    organizational_unit_name: "{{ organizational_unit }}"
-    common_name: "{{ common_name_address }}"
-    subject_alt_name: "{{ subject_alt_name_options }}"
+    path: "/etc/ssl/{{ certificate.csr }}"
+    privatekey_path: "/etc/ssl/private/{{ certificate.private_key }}"
+    country_name: "{{ certificate.subject.country }}"
+    state_or_province_name: "{{ certificate.subject.state }}"
+    locality_name: "{{ certificate.subject.city }}"
+    organization_name: "{{ certificate.subject.organization }}"
+    organizational_unit_name: "{{ certificate.subject.organizational_unit }}"
+    common_name: "{{ certificate.subject.common_name }}"
+    subject_alt_name:
+      - "DNS:{{ domain_name }}"
+      - "IP:{{ ip_address }}"
 
-- name: Read CSR file from remote host
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Read CSR
   ansible.builtin.slurp:
-    src: "{{ CertificateSigningRequest }}"
+    src: "/etc/ssl/{{ certificate.csr }}"
   register: csr_file
 
-- name: POSTING CSR file to the pki server to be signed
+- name: Generate sighed public key
+  become: true
   ansible.builtin.uri:
     remote_src: true
-    url:
+    url: "{{ url.post_sighed }}"
     method: POST
     body_format: form-multipart
     body:
       DomainName: "{{ domain_name }}"
       CertificateSigningRequest:
-        filename: "{{ CertificateSigningRequest }}"
+        filename: "{{ certificate.csr }}"
         content: "{{ csr_file.content | b64decode }}"
         mime_type: text/plain
     return_content: true
   register: response
 
-- name: Write response to file
-  ansible.builtin.copy:
-    content: "{{ response.content }}"
-    dest: "{{ PublicKey }}"
-    mode: "0760"
-
-- name: Moving keys
+- name: Write response to public key
   become: true
   ansible.builtin.copy:
-    remote_src: true
-    src: "{{ item.Source }}"
-    dest: "{{ item.Path }}"
-    mode: "{{ item.Perm }}"
+    content: "{{ response.content }}"
+    dest: "/etc/ssl/certs/{{ certificate.public_key }}"
     owner: root
-    group: "{{ item.Groups }}"
-  loop:
-    - { Source: "{{ PublicKey }}", Path: "/etc/ssl/certs", Perm: "0644", Groups: "root" }
-    - { Source: "{{ PrivateKey }}", Path: "/etc/ssl/private", Perm: "0640", Groups: "ssl-cert"}
-
-- name: Delete the CSR file
-  ansible.builtin.file:
-    state: absent
-    dest: "{{ item }}"
-  loop:
-    - "{{ PrivateKey }}"
-    - "{{ CertificateSigningRequest }}"
-    - "{{ PublicKey }}"
+    group: root
+    mode: "0644"

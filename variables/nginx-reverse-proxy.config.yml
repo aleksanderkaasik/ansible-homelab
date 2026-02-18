@@ -1,7 +1,0 @@
-cloudflare_api_token:
-
-cloudflare_zones:
-  # { "zone_name": "zone_id" }
-
-nginx_site_config:
-  # - { domain_name: "FQDN", proxy: "InternalAddress" }
