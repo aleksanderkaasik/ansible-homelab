@@ -2,7 +2,10 @@
 - name: Running Zabbix Server Playbook
   hosts: zabbix-server
   vars_files:
-    - variables/main.yml
+    - variables/config/mysql.yml
+    - variables/config/pki-server.yml
+    - variables/system/certificate.yml
+    - variables/config/zabbix-server.yml
   tasks:
     - name: Install Zabbix repository
       become: true
@@ -44,12 +47,12 @@
     - name: Create Zabbix database
       become: true
       community.mysql.mysql_db:
-        name: "{{ zabbix.server.database.name }}"
+        name: "{{ database.name }}"
         state: present
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
         encoding: utf8mb4
         collation: utf8mb4_bin
       notify: Import Zabbix Database Dump
@@ -57,17 +60,25 @@
     - name: Create MySQL users
       become: true
       community.mysql.mysql_user:
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
         column_case_sensitive: true
-        name: "{{ zabbix.server.database.user }}"
-        password: "{{ zabbix.server.database.password }}"
+        name: "{{ database.user }}"
+        password: "{{ database.password }}"
         host: "%"
         priv:
-          "{{ zabbix.server.database.name }}.*:ALL"
+          "{{ database.name }}.*:ALL"
         state: present
+
+    - name: Select query to test_db with named_args
+      community.mysql.mysql_query:
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
+        query: SET GLOBAL log_bin_trust_function_creators = 1;
 
     - name: SSL certificate request generator
       ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
@@ -123,8 +134,8 @@
               </Directory>
 
               SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ certificate.public_key }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ certificate.private_key }}
+              SSLCertificateFile /etc/ssl/certs/{{ public_key }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
           </VirtualHost>
         dest: /etc/apache2/sites-enabled/zabbix.conf
         owner: root
@@ -147,23 +158,23 @@
         line: "{{ item.option }}={{ item.value }}"
       notify: Restart Zabbix Server
       loop:
-        - { option: DBHost, value: "{{ zabbix.server.database.host }}" }
-        - { option: DBPort, value: "{{ zabbix.server.database.port }}" }
-        - { option: DBName, value: "{{ zabbix.server.database.name }}" }
-        - { option: DBUser, value: "{{ zabbix.server.database.user }}" }
-        - { option: DBPassword, value: "{{ zabbix.server.database.password }}" }
+        - { option: DBHost, value: "{{ database.host }}" }
+        - { option: DBPort, value: "{{ database.port }}" }
+        - { option: DBName, value: "{{ database.name }}" }
+        - { option: DBUser, value: "{{ database.user }}" }
+        - { option: DBPassword, value: "{{ database.password }}" }
 
   handlers:
     - name: Import Zabbix Database Dump
       become: true
       community.mysql.mysql_db:
-        name: "{{ zabbix.server.database.name }}"
+        name: "{{ database.name }}"
         state: import
         target: /usr/share/zabbix/sql-scripts/mysql/server.sql.gz
-        login_user: "{{ zabbix.server.database.user }}"
-        login_password: "{{ zabbix.server.database.password }}"
-        login_host: "{{ zabbix.server.database.host }}"
-        login_port: "{{ zabbix.server.database.port }}"
+        login_user: "{{ database.user }}"
+        login_password: "{{ database.password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
 
     - name: Restart Zabbix Server
       become: true

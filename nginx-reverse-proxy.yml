@@ -2,7 +2,8 @@
 - name: Running Nginx Reverse Proxy Playbook
   hosts: nginx
   vars_files:
-    - variables/main.yml
+    - variables/config/nginx-reverse.yml
+    - variables/system/certificate.yml
   tasks:
     - name: Installing nginx
       become: true
@@ -20,7 +21,7 @@
 
     - name: Adding site configuration
       ansible.builtin.include_tasks: tasks/nginx-reverse.yml
-      loop: "{{ nginx.sites }}"
+      loop: "{{ sites }}"
 
   handlers:
     - name: Restart nginx

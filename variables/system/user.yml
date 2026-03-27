@@ -1,0 +1,14 @@
+---
+admin:
+  user:
+  group:
+  key:
+  password:
+
+ansible:
+  user:
+  group:
+  key:
+
+root:
+  key:

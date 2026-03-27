@@ -2,7 +2,10 @@
 - name: Running NextCloud Playbook
   hosts: nextcloud
   vars_files:
-    - variables/main.yml
+    - variables/config/mysql.yml
+    - variables/config/pki-server.yml
+    - variables/system/certificate.yml
+    - variables/config/nextcloud.yml
   tasks:
     - name: Install PHP modules dependency and Apache2
       become: true
@@ -98,8 +101,8 @@
             </Directory>
 
               SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ certificate.public_key }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ certificate.private_key }}
+              SSLCertificateFile /etc/ssl/certs/{{ public_key }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
             </VirtualHost>
         dest: /etc/apache2/sites-enabled/nextcloud.conf
         owner: root
@@ -117,28 +120,28 @@
     - name: Create NextCloud database
       become: true
       community.mysql.mysql_db:
-        name: "{{ nextcloud.database.name }}"
+        name: "{{ database.name }}"
         state: present
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
         encoding: utf8mb4
         collation: utf8mb4_bin
 
     - name: Create MySQL users
       become: true
       community.mysql.mysql_user:
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
         column_case_sensitive: true
-        name: "{{ nextcloud.database.user }}"
-        password: "{{ nextcloud.database.password }}"
+        name: "{{ database.user }}"
+        password: "{{ database.password }}"
         host: "%"
         priv:
-          "{{ nextcloud.database.name }}.*:ALL"
+          "{{ database.name }}.*:ALL"
         state: present
 
     - name: Check if Nextcloud is already installed
@@ -150,14 +153,14 @@
     - name: Generating config file and database
       ansible.builtin.command: >
         sudo -u www-data php occ maintenance:install
-        --database "{{ nextcloud.database.engine }}"
-        --database-host "{{ nextcloud.database.host }}"
-        --database-port "{{ nextcloud.database.port }}"
-        --database-name "{{ nextcloud.database.name }}"
-        --database-user "{{ nextcloud.database.user }}"
-        --database-pass "{{ nextcloud.database.password }}"
-        --admin-user "{{ nextcloud.admin.user }}"
-        --admin-pass "{{ nextcloud.admin.password }}"
+        --database "{{ database.engine }}"
+        --database-host "{{ database.host }}"
+        --database-port "{{ database.port }}"
+        --database-name "{{ database.name }}"
+        --database-user "{{ database.user }}"
+        --database-pass "{{ database.password }}"
+        --admin-user "{{ admin.user }}"
+        --admin-pass "{{ admin.password }}"
       args:
         chdir: "/var/www/nextcloud"
       when: not nextcloud_config.stat.exists
@@ -179,7 +182,7 @@
         sudo -u www-data php occ config:system:set trusted_domains "{{ trusted_domains_index }}" --value="{{ item }}"
       args:
         chdir: "/var/www/nextcloud"
-      loop: "{{ nextcloud.trusted_domains }}"
+      loop: "{{ trusted_domains }}"
       loop_control:
         index_var: trusted_domains_index
       changed_when: false

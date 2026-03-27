@@ -1,0 +1,10 @@
+---
+username:
+password:
+mysql_host: 
+privileges:
+  # "*.*": "ALL,GRANT"
+
+mysql:
+  address: "{{ groups['mysql'][0] }}"
+  port:

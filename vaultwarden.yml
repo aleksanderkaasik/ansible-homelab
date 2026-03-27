@@ -2,9 +2,12 @@
 - name: Running VaultWarden Playbook
   hosts: vaultwarden
   vars_files:
-    - variables/main.yml
+    - variables/config/mysql.yml
+    - variables/config/pki-server.yml
+    - variables/system/certificate.yml
+    - variables/config/vaultwarden.yml
   tasks:
-    - name: Install depe
+    - name: Install dependacies
       become: true
       ansible.builtin.apt:
         name:
@@ -19,26 +22,26 @@
     - name: Create VaultWarden database
       become: true
       community.mysql.mysql_db:
-        name: "{{ vault.db.name }}"
+        name: "{{ database.name }}"
         state: present
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
 
     - name: Create VaultWarden users
       become: true
       community.mysql.mysql_user:
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
         column_case_sensitive: true
-        name: "{{ vault.db.user }}"
-        password: "{{ vault.db.password }}"
+        name: "{{ database.user }}"
+        password: "{{ database.password }}"
         host: "%"
         priv:
-          "{{ vault.db.name }}.*:ALL"
+          "{{ database.name }}.*:ALL"
         state: present
 
     - name: Create VaultWarden directory
@@ -61,8 +64,8 @@
               container_name: vaultwarden
               restart: unless-stopped
               environment:
-                DATABASE_URL: "{{ vault.db.engine }}://{{ vault.db.user }}:{{ vault.db.password }}@{{ vault.db.host }}:{{ vault.db.port }}/{{ vault.db.name }}"
-                ROCKET_TLS: '{certs="/etc/ssl/certs/{{ certificate.public_key }}", key="/etc/ssl/private/{{ certificate.private_key }}"}'
+                DATABASE_URL: "{{ database.engine }}://{{ database.user }}:{{ database.password }}@{{ database.host }}:{{ database.port }}/{{ database.name }}"
+                ROCKET_TLS: '{certs="/etc/ssl/certs/{{ public_key }}", key="/etc/ssl/private/{{ private_key }}"}'
               volumes:
                 - ./vw-data/:/data/
                 - /etc/ssl:/etc/ssl

@@ -1,0 +1,21 @@
+---
+tsig:
+  name:
+  algorithm:
+  key:
+
+cidr_allowed_access_list: []
+  # - 192.168.144.0/24
+  # - 127.0.0.0/8
+
+forwarders: []
+  # - 1.1.1.1
+  # - 8.8.8.8
+  # - 9.9.9.9
+
+forward_zones: []
+  # - dev.home
+  # - test.home
+
+reverse_zones: []
+  # - 144.168.192.in-addr.arpa

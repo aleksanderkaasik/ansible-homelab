@@ -2,7 +2,7 @@
 - name: Running Bind9 Playbook
   hosts: bind9
   vars_files:
-    - variables/main.yml
+    - variables/config/bind9.yml
   tasks:
     - name: Install Bind9
       become: true
@@ -16,13 +16,13 @@
         content: |
           include "/etc/bind/named.conf.default-zones";
 
-          key "{{ bind9.tsig.name }}" {
-            algorithm {{ bind9.tsig.algorithm }};
-            secret "{{ bind9.tsig.key }}";
+          key "{{ tsig.name }}" {
+            algorithm {{ tsig.algorithm }};
+            secret "{{ tsig.key }}";
           };
 
           acl internal {
-            {% for cidr in bind9.cidr_allowed_access_list %}
+            {% for cidr in cidr_allowed_access_list %}
             {{ cidr }};
             {% endfor %}
           };
@@ -31,7 +31,7 @@
             directory "/var/cache/bind";
 
             forwarders {
-              {% for forwarder in bind9.forwarders %}
+              {% for forwarder in forwarders %}
               {{ forwarder }};
               {% endfor %}
             };
@@ -41,19 +41,19 @@
             listen-on-v6 { any; };
           };
 
-          {% for forward_zone in bind9.forward_zones %}
+          {% for forward_zone in forward_zones %}
           zone "{{ forward_zone }}" {
             type master;
             file "/var/lib/bind/{{ forward_zone }}";
-            update-policy { grant {{ bind9.tsig.name }} zonesub any; };
+            update-policy { grant {{ tsig.name }} zonesub any; };
           };
           {% endfor %}
 
-          {% for reverse_zone in bind9.reverse_zones %}
+          {% for reverse_zone in reverse_zones %}
           zone "{{ reverse_zone }}" {
             type master;
             file "/var/lib/bind/{{ reverse_zone }}";
-            update-policy { grant {{ bind9.tsig.name }} zonesub any; };
+            update-policy { grant {{ tsig.name }} zonesub any; };
           };
           {% endfor %}
         dest: /etc/bind/named.conf
@@ -81,27 +81,27 @@
         group: bind
         mode: "0640"
       notify: Restart Bind9
-      loop: "{{ bind9.forward_zones }}"
+      loop: "{{ forward_zones }}"
 
     - name: Configure reverse zones
       become: true
       ansible.builtin.copy:
         content: |
           $TTL 604800
-          @ IN SOA ns.{{ bind9.forward_zones[0] }}. root.{{ bind9.forward_zones[0] }}. (
+          @ IN SOA ns.{{ forward_zones[0] }}. root.{{ forward_zones[0] }}. (
                    2 ; Serial
               604800 ; Refresh
                86400 ; Retry
              2419200 ; Expire
               604800 ; Negative Cache TTL
           )
-          @       IN       NS       ns.{{ bind9.forward_zones[0] }}.
+          @       IN       NS       ns.{{ forward_zones[0] }}.
         dest: /var/lib/bind/{{ item }}
         owner: bind
         group: bind
         mode: "0640"
       notify: Restart Bind9
-      loop: "{{ bind9.reverse_zones }}"
+      loop: "{{ reverse_zones }}"
 
   handlers:
     - name: Restart Bind9

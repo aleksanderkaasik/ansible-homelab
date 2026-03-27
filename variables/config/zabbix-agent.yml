@@ -1,0 +1,4 @@
+---
+listening:
+  server: "{{ groups['zabbix-server'][0] }}"
+  port: 10050

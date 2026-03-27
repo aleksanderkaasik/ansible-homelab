@@ -1,0 +1,12 @@
+---
+private_key: "{{ domain_name }}.key"
+csr: "{{ domain_name }}.csr"
+public_key: "{{ domain_name }}.crt"
+
+subject:
+  country:
+  state:
+  city:
+  organization:
+  organizational_unit:
+  common_name: "{{ domain_name }}"

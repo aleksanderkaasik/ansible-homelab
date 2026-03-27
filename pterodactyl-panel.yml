@@ -2,7 +2,10 @@
 - name: Running Pterodactyl Panel Playbook
   hosts: pterodactyl-panel
   vars_files:
-    - variables/main.yml
+    - variables/config/pki-server.yml
+    - variables/config/mysql.yml
+    - variables/system/certificate.yml
+    - variables/config/pterodactyl-panel.yml
   tasks:
     - name: Install general dependencies, PHP and PHP dependencies
       become: true
@@ -99,12 +102,12 @@
     - name: Create Pterodactyl database
       become: true
       community.mysql.mysql_db:
-        name: "{{ pterodactyl.panel.database.name }}"
+        name: "{{ database.name }}"
         state: present
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
         encoding: utf8mb4
         collation: utf8mb4_bin
       notify: Migrate Database
@@ -112,16 +115,16 @@
     - name: Create MySQL users
       become: true
       community.mysql.mysql_user:
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
         column_case_sensitive: true
-        name: "{{ pterodactyl.panel.database.user }}"
-        password: "{{ pterodactyl.panel.database.password }}"
+        name: "{{ database.user }}"
+        password: "{{ database.password }}"
         host: "%"
         priv:
-          "{{ pterodactyl.panel.database.name }}.*:ALL"
+          "{{ database.name }}.*:ALL"
         state: present
 
     - name: Create .env file
@@ -142,25 +145,25 @@
         line: "{{ item.option }}={{ item.value }}"
       notify: Restart Pterodactyl
       loop:
-        - { option: APP_ENV, value: "{{ pterodactyl.panel.app.env }}" }
-        - { option: APP_DEBUG, value: "{{ pterodactyl.panel.app.debug }}" }
-        - { option: APP_KEY, value: "{{ pterodactyl.panel.app.key }}" }
-        - { option: APP_THEME, value: "{{ pterodactyl.panel.app.theme }}" }
-        - { option: APP_TIMEZONE, value: "{{ pterodactyl.panel.app.timezone }}" }
-        - { option: APP_URL, value: "{{ pterodactyl.panel.app.url }}" }
-        - { option: APP_LOCALE, value: "{{ pterodactyl.panel.app.locale }}" }
-        - { option: APP_ENVIRONMENT_ONLY, value: "{{ pterodactyl.panel.app.environment_only }}" }
+        - { option: APP_ENV, value: "{{ app.env }}" }
+        - { option: APP_DEBUG, value: "{{ app.debug }}" }
+        - { option: APP_KEY, value: "{{ app.key }}" }
+        - { option: APP_THEME, value: "{{ app.theme }}" }
+        - { option: APP_TIMEZONE, value: "{{ app.timezone }}" }
+        - { option: APP_URL, value: "{{ app.url }}" }
+        - { option: APP_LOCALE, value: "{{ app.locale }}" }
+        - { option: APP_ENVIRONMENT_ONLY, value: "{{ app.environment_only }}" }
 
-        - { option: DB_CONNECTION, value: "{{ pterodactyl.panel.database.engine }}" }
-        - { option: DB_HOST, value: "{{ pterodactyl.panel.database.host }}" }
-        - { option: DB_PORT, value: "{{ pterodactyl.panel.database.port }}" }
-        - { option: DB_DATABASE, value: "{{ pterodactyl.panel.database.name }}" }
-        - { option: DB_USERNAME, value: "{{ pterodactyl.panel.database.user }}" }
-        - { option: DB_PASSWORD, value: "{{ pterodactyl.panel.database.password }}" }
+        - { option: DB_CONNECTION, value: "{{ database.engine }}" }
+        - { option: DB_HOST, value: "{{ database.host }}" }
+        - { option: DB_PORT, value: "{{ database.port }}" }
+        - { option: DB_DATABASE, value: "{{ database.name }}" }
+        - { option: DB_USERNAME, value: "{{ database.user }}" }
+        - { option: DB_PASSWORD, value: "{{ database.password }}" }
 
-        - { option: REDIS_HOST, value: "{{ pterodactyl.panel.redis.host }}" }
-        - { option: REDIS_PORT, value: "{{ pterodactyl.panel.redis.port }}" }
-        - { option: REDIS_PASSWORD, value: "{{ pterodactyl.panel.redis.password }}" }
+        - { option: REDIS_HOST, value: "{{ redis.host }}" }
+        - { option: REDIS_PORT, value: "{{ redis.port }}" }
+        - { option: REDIS_PASSWORD, value: "{{ redis.password }}" }
 
     # php artisan p:environment:mail
 
@@ -207,9 +210,9 @@
         line: "{{ item.option }} {{ item.value }}"
       notify: Restart Redis
       loop:
-        - { option: bind, value: "{{ pterodactyl.panel.redis.host }}" }
-        - { option: port, value: "{{ pterodactyl.panel.redis.port }}" }
-        - { option: requirepass, value: "{{ pterodactyl.panel.redis.password }}" }
+        - { option: bind, value: "{{ redis.host }}" }
+        - { option: port, value: "{{ redis.port }}" }
+        - { option: requirepass, value: "{{ redis.password }}" }
 
     - name: Install pacakge of composer
       become: true
@@ -328,8 +331,8 @@
               </Directory>
 
               SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ certificate.public_key }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ certificate.private_key }}
+              SSLCertificateFile /etc/ssl/certs/{{ public_key }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
           </VirtualHost>
         dest: /etc/apache2/sites-enabled/pterodactyl.conf
         owner: root

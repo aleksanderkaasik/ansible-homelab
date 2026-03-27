@@ -1,0 +1,13 @@
+---
+ca_cert_passphrase:
+address: "{{ groups['pki-server'][0] }}"
+nodejs:
+  hostname:
+  port:
+
+pki:
+  address: "{{ groups['pki-server'][0] }}"
+  port: "{{ nodejs.port }}"
+
+get_ca: "http://{{ pki.address }}:{{ pki.port }}/get-ca"
+post_sighed: "http://{{ pki.address }}:{{ pki.port }}/sign-ssl"

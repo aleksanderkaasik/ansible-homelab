@@ -2,7 +2,10 @@
 - name: Running WordPress Playbook
   hosts: wordpress
   vars_files:
-    - variables/main.yml
+    - variables/config/mysql.yml
+    - variables/config/pki-server.yml
+    - variables/system/certificate.yml
+    - variables/config/wordpress.yml
   tasks:
     - name: Install dependacies for WordPress
       become: true
@@ -43,26 +46,26 @@
     - name: Create WordPress database
       become: true
       community.mysql.mysql_db:
-        name: "{{ wordpress.database.name }}"
+        name: "{{ database.name }}"
         state: present
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
 
     - name: Create WordPress users
       become: true
       community.mysql.mysql_user:
-        login_user: "{{ mysql.username }}"
-        login_password: "{{ mysql.password }}"
-        login_host: "{{ mysql.address }}"
-        login_port: "{{ mysql.port }}"
+        login_user: "{{ username }}"
+        login_password: "{{ password }}"
+        login_host: "{{ database.host }}"
+        login_port: "{{ database.port }}"
         column_case_sensitive: true
-        name: "{{ wordpress.database.user }}"
-        password: "{{ wordpress.database.password }}"
+        name: "{{ database.user }}"
+        password: "{{ database.password }}"
         host: "%"
         priv:
-          "{{ wordpress.database.name }}.*:ALL"
+          "{{ database.name }}.*:ALL"
         state: present
 
     - name: SSL certificate request generator
@@ -109,8 +112,8 @@
               ServerName {{ domain_name }}
 
               SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ certificate.public_key }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ certificate.private_key }}
+              SSLCertificateFile /etc/ssl/certs/{{ public_key }}
+              SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
 
               <Directory /var/www/wordpress>
                   Options FollowSymLinks
@@ -152,16 +155,16 @@
         content: |
           <?php
           /** The name of the database for WordPress */
-          define( 'DB_NAME', '{{ wordpress.database.name }}' );
+          define( 'DB_NAME', '{{ database.name }}' );
 
           /** Database username */
-          define( 'DB_USER', '{{ wordpress.database.user }}' );
+          define( 'DB_USER', '{{ database.user }}' );
 
           /** Database password */
-          define( 'DB_PASSWORD', '{{ wordpress.database.password }}' );
+          define( 'DB_PASSWORD', '{{ database.password }}' );
 
           /** Database hostname */
-          define( 'DB_HOST', '{{ wordpress.database.host }}:{{ wordpress.database.port }}' );
+          define( 'DB_HOST', '{{ database.host }}:{{ database.port }}' );
 
           /** Database charset to use in creating database tables. */
           define( 'DB_CHARSET', 'utf8mb4' );
@@ -170,20 +173,21 @@
           define( 'DB_COLLATE', '' );
 
           /** https://api.wordpress.org/secret-key/1.1/salt/ */
-          define( 'AUTH_KEY', '{{ wordpress.auth_key }}' );
-          define( 'SECURE_AUTH_KEY', '{{ wordpress.secure_auth_key }}' );
-          define( 'LOGGED_IN_KEY', '{{ wordpress.logged_in_key }}' );
-          define( 'NONCE_KEY', '{{ wordpress.nonce_key }}' );
-          define( 'AUTH_SALT', '{{ wordpress.auth_salt }}' );
-          define( 'SECURE_AUTH_SALT', '{{ wordpress.secure_auth_salt }}' );
-          define( 'LOGGED_IN_SALT', '{{ wordpress.logged_in_salt }}' );
-          define( 'NONCE_SALT', '{{ wordpress.nonce_salt }}' );
+          define( 'AUTH_KEY', '{{ auth_key }}' );
+          define( 'SECURE_AUTH_KEY', '{{ secure_auth_key }}' );
+          define( 'LOGGED_IN_KEY', '{{ logged_in_key }}' );
+          define( 'NONCE_KEY', '{{ nonce_key }}' );
+          define( 'AUTH_SALT', '{{ auth_salt }}' );
+          define( 'SECURE_AUTH_SALT', '{{ secure_auth_salt }}' );
+          define( 'LOGGED_IN_SALT', '{{ logged_in_salt }}' );
+          define( 'NONCE_SALT', '{{ nonce_salt }}' );
 
           $table_prefix = 'wp_';
           define( 'WP_DEBUG', true );
 
           /* Add any custom values between this line and the "stop editing" line. */
 
+          {% if multisiteIsEnabled %}
           /* Multisite */
           define( 'WP_ALLOW_MULTISITE', true );
 
@@ -194,6 +198,7 @@
           define( 'SITE_ID_CURRENT_SITE', 1 );
           define( 'BLOG_ID_CURRENT_SITE', 1 );
 
+          {% endif %}
 
           /* That's all, stop editing! Happy publishing. */
 

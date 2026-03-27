@@ -2,7 +2,7 @@
 - name: Running HAProxy Playbook
   hosts: haproxy
   vars_files:
-    - variables/main.yml
+    - variables/config/haproxy.yml
   tasks:
     - name: Install HAProxy
       become: true
@@ -24,18 +24,18 @@
             mode tcp
             tcp-request inspect-delay 5s
 
-            {% for traffic in haproxy.traffic %}acl is_{{ traffic.name }} payload(4,{{ traffic.domain | length + 1 }}) -m sub {{ traffic.domain }}
+            {% for traffic in traffics %}acl is_{{ traffic.name }} payload(4,{{ traffic.domain | length + 1 }}) -m sub {{ traffic.domain }}
             {% endfor %}
 
-            tcp-request content accept if {% for traffic in haproxy.traffic %}
+            tcp-request content accept if {% for traffic in traffics %}
             is_{{ traffic.name }}{% if not loop.last %} or {% endif %}
             {% endfor %}
 
-            {% for traffic in haproxy.traffic %}
+            {% for traffic in traffics %}
             use_backend {{ traffic.name }}_backend if is_{{ traffic.name }}
             {% endfor %}
 
-          {% for traffic in haproxy.traffic %}
+          {% for traffic in traffics %}
           backend {{ traffic.name }}_backend
             server {{ traffic.name }} {{ traffic.address }}
           {% endfor %}

@@ -2,7 +2,7 @@
 - name: Running Zabbix Agent 2 Playbook
   hosts: all
   vars_files:
-    - variables/main.yml
+    - variables/config/zabbix-agent.yml
   tasks:
     - name: Install Zabbix repository
       become: true
@@ -39,9 +39,9 @@
         line: "{{ item.key }}={{ item.value }}"
       notify: Restart Zabbix Agent
       loop:
-        - { key: Server, value: "{{ zabbix.agent.listening.server }}" }
-        - { key: ListenPort, value: "{{ zabbix.agent.listening.port }}" }
-        - { key: ServerActive, value: "{{ zabbix.agent.listening.server }}" }
+        - { key: Server, value: "{{ listening.server }}" }
+        - { key: ListenPort, value: "{{ listening.port }}" }
+        - { key: ServerActive, value: "{{ listening.server }}" }
         - { key: Hostname, value: "{{ ansible_hostname }}" }
         - { key: HostnameItem, value: "{{ ansible_hostname }}" }
         - { key: HostMetadata, value: "zabbix_{{ ansible_hostname }}" }

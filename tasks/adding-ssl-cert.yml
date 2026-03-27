@@ -8,7 +8,7 @@
 - name: Generate Private Key
   become: true
   community.crypto.openssl_privatekey:
-    path: "/etc/ssl/private/{{ certificate.private_key }}"
+    path: "/etc/ssl/private/{{ private_key }}"
     size: 4096
     type: RSA
     owner: root
@@ -18,14 +18,14 @@
 - name: Generate CSR
   become: true
   community.crypto.openssl_csr:
-    path: "/etc/ssl/{{ certificate.csr }}"
-    privatekey_path: "/etc/ssl/private/{{ certificate.private_key }}"
-    country_name: "{{ certificate.subject.country }}"
-    state_or_province_name: "{{ certificate.subject.state }}"
-    locality_name: "{{ certificate.subject.city }}"
-    organization_name: "{{ certificate.subject.organization }}"
-    organizational_unit_name: "{{ certificate.subject.organizational_unit }}"
-    common_name: "{{ certificate.subject.common_name }}"
+    path: "/etc/ssl/{{ csr }}"
+    privatekey_path: "/etc/ssl/private/{{ private_key }}"
+    country_name: "{{ subject.country }}"
+    state_or_province_name: "{{ subject.state }}"
+    locality_name: "{{ subject.city }}"
+    organization_name: "{{ subject.organization }}"
+    organizational_unit_name: "{{ subject.organizational_unit }}"
+    common_name: "{{ subject.common_name }}"
     subject_alt_name:
       - "DNS:{{ domain_name }}"
       - "IP:{{ ip_address }}"
@@ -36,20 +36,20 @@
 
 - name: Read CSR
   ansible.builtin.slurp:
-    src: "/etc/ssl/{{ certificate.csr }}"
+    src: "/etc/ssl/{{ csr }}"
   register: csr_file
 
 - name: Generate sighed public key
   become: true
   ansible.builtin.uri:
     remote_src: true
-    url: "{{ url.post_sighed }}"
+    url: "{{ post_sighed }}"
     method: POST
     body_format: form-multipart
     body:
       DomainName: "{{ domain_name }}"
       CertificateSigningRequest:
-        filename: "{{ certificate.csr }}"
+        filename: "{{ csr }}"
         content: "{{ csr_file.content | b64decode }}"
         mime_type: text/plain
     return_content: true
@@ -59,7 +59,7 @@
   become: true
   ansible.builtin.copy:
     content: "{{ response.content }}"
-    dest: "/etc/ssl/certs/{{ certificate.public_key }}"
+    dest: "/etc/ssl/certs/{{ public_key }}"
     owner: root
     group: root
     mode: "0644"

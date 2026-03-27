@@ -1,0 +1,18 @@
+---
+database:
+  engine: mysql
+  host:
+  port:
+  name: 
+  user:
+  password:
+
+admin:
+  user:
+  password:
+
+trusted_domains: []
+  # - 127.0.0.1
+  # - localhost
+  # - "{{ ip_address }}"
+  # - "{{ domain_name }}"

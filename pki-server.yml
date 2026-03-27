@@ -2,7 +2,9 @@
 - name: Running PKI Server Playbook
   hosts: pki-server
   vars_files:
-    - variables/main.yml
+    - variables/system/user.yml
+    - variables/system/certificate.yml
+    - variables/config/pki-server.yml
   tasks:
     - name: Install needed dependencies
       become: true
@@ -49,9 +51,9 @@
         line: "{{ item.value }}"
       notify: Restart RESTingCertCall
       loop:
-        - { regex: "^CA_root_password", value: "CA_root_password={{ pki.ca_cert_passphrase }}" }
-        - { regex: "^node_hostname", value: "node_hostname={{ pki.nodejs.hostname }}" }
-        - { regex: "^node_port", value: "node_port={{ pki.nodejs.port }}" }
+        - { regex: "^CA_root_password", value: "CA_root_password={{ ca_cert_passphrase }}" }
+        - { regex: "^node_hostname", value: "node_hostname={{ nodejs.hostname }}" }
+        - { regex: "^node_port", value: "node_port={{ nodejs.port }}" }
 
     - name: Creating directories for the project
       ansible.builtin.file:
@@ -66,7 +68,7 @@
 
     - name: Generate CA Private Key
       community.crypto.openssl_privatekey:
-        passphrase: "{{ pki.ca_cert_passphrase }}"
+        passphrase: "{{ ca_cert_passphrase }}"
         path: /var/opt/RESTingCertCall/ca/ca.key
         size: 4096
         type: RSA
@@ -75,13 +77,13 @@
     - name: Generate CA self-signed certificate
       community.crypto.openssl_csr_pipe:
         privatekey_path: /var/opt/RESTingCertCall/ca/ca.key
-        privatekey_passphrase: "{{ pki.ca_cert_passphrase }}"
-        country_name: "{{ certificate.subject.country }}"
-        state_or_province_name: "{{ certificate.subject.state }}"
-        locality_name: "{{ certificate.subject.city }}"
-        organization_name: "{{ certificate.subject.organization }}"
-        organizational_unit_name: "{{ certificate.subject.organizational_unit }}"
-        common_name: "{{ certificate.subject.common_name }}"
+        privatekey_passphrase: "{{ ca_cert_passphrase }}"
+        country_name: "{{ subject.country }}"
+        state_or_province_name: "{{ subject.state }}"
+        locality_name: "{{ subject.city }}"
+        organization_name: "{{ subject.organization }}"
+        organizational_unit_name: "{{ subject.organizational_unit }}"
+        common_name: "{{ subject.common_name }}"
         subject_alt_name:
           - "DNS:{{ domain_name }}"
           - "IP:{{ ip_address }}"
@@ -100,7 +102,7 @@
         provider: selfsigned
         path: /var/opt/RESTingCertCall/ca/ca.crt
         privatekey_path: /var/opt/RESTingCertCall/ca/ca.key
-        privatekey_passphrase: "{{ pki.ca_cert_passphrase }}"
+        privatekey_passphrase: "{{ ca_cert_passphrase }}"
         ownca_not_after: "+1825d"
         ownca_not_before: "-1d"
 

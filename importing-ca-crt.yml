@@ -1,12 +1,12 @@
 - name: Running CA certificate install Playbook
   hosts: all
   vars_files:
-    - variables/main.yml
+    - variables/config/pki-server.yml
   tasks:
     - name: Install Certificate Authority certificate
       become: true
       ansible.builtin.get_url:
-        url: "{{ url.get_ca }}"
+        url: "{{ get_ca }}"
         dest: /usr/local/share/ca-certificates/PersonalCa.crt
         owner: root
         group: root

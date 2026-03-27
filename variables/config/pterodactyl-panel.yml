@@ -1,0 +1,23 @@
+---
+app:
+  env:
+  debug:
+  key:
+  theme:
+  timezone:
+  url:
+  locale:
+  environment_only:
+
+database:
+  engine: mysql
+  host:
+  port:
+  name:
+  user:
+  password:
+
+redis:
+  host:
+  port:
+  password:

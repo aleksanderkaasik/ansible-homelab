@@ -1,0 +1,8 @@
+---
+database:
+  engine: "mysql"
+  host:
+  port:
+  name:
+  user:
+  password:
