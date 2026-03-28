@@ -1,4 +1,7 @@
 ---
+ip_address: "{{ ansible_default_ipv4.address }}"
+domain_name:
+
 ca_cert_passphrase:
 address: "{{ groups['pki-server'][0] }}"
 nodejs:
