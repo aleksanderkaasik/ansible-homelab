@@ -2,8 +2,9 @@
 - name: Running Pterodactyl Wing Playbook
   hosts: pterodactyl-wing
   vars_files:
-    - variables/config/pterodactyl-wing.yml
+    - variables/config/pki-server.yml
     - variables/system/certificate.yml
+    - variables/config/pterodactyl-wing.yml
   tasks:
     - name: Install dependency
       become: true

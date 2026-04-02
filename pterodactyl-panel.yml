@@ -235,15 +235,15 @@
         global: true
         state: present
 
-    # - name: Install project dependencies
-    #   become: true
-    #   ansible.builtin.command: yarn "{{ item }}"
-    #   notify: Restart Pterodactyl
-    #   args:
-    #     chdir: "/var/www/pterodactyl"
-    #   loop:
-    #     - install
-    #     - build
+    - name: Install project dependencies
+      become: true
+      ansible.builtin.command: yarn "{{ item }}"
+      notify: Restart Pterodactyl
+      args:
+        chdir: "/var/www/pterodactyl"
+      loop:
+        - install
+        - build
 
     - name: Install packages based on package.json.
       become: true
