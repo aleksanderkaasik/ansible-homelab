@@ -1,0 +1,16 @@
+---
+cloudflare:
+  api_token:
+  zones:
+    # Zone1:
+    #     id: "ZoneID1"
+    #     sites:
+    #       - sub: test
+    #         proxy: https://test.home.local
+    #       - sub: nama
+    #         proxy: http://name.test.loc
+    # Zone2:
+    #     id: "ZoneID2"
+    #     sites:
+    #       - sub: "another"
+    #         proxy: https://going.to.home.loc
