@@ -75,7 +75,7 @@
               604800       ; Negative Cache TTL
           )
           @       IN      NS      ns.{{ item }}.
-          ns      IN      A       {{ ip_address }}
+          ns      IN      A       {{ ansible_default_ipv4.address }}
         dest: /var/lib/bind/{{ item }}
         owner: bind
         group: bind
