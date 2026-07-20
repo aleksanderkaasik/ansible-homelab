@@ -308,7 +308,7 @@ resource "proxmox_lxc" "nextcloud" {
   hostname        = "nextcloud"
   ostemplate      = var.os_image
   password        = var.proxmox_vm_password
-  unprivileged    = false
+  unprivileged    = true
   start           = true
   cores           = 2
   memory          = 4096
@@ -330,6 +330,14 @@ resource "proxmox_lxc" "nextcloud" {
   rootfs {
     storage = "VM-Storage"
     size    = "16G"
+  }
+
+  mountpoint {
+    key     = "0"
+    slot    = 0
+    storage = "CloudStorage"
+    mp      = "/mnt/CloudStorage"
+    size    = "4T"
   }
 
   lifecycle {
