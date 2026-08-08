@@ -4,7 +4,7 @@ terraform {
       source  = "Telmate/proxmox"
       version = "3.0.2-rc05"
     }
-    
+
     dns = {
       source  = "hashicorp/dns"
       version = "3.4.3"
@@ -41,6 +41,34 @@ data "http" "my_ip" {
   url = "https://ifconfig.me/ip"
 }
 
+data "external" "lxc_vmids" {
+  program = [
+    "bash", "${path.module}/Getting_IP_OR_VMID_From_Proxmox.sh",
+    "${var.proxmox_host}",
+    "${var.proxmox_api_token_id}",
+    "${var.proxmox_api_token_secret}",
+    "${var.proxmox_node_name}"
+  ]
+}
+
+data "external" "ips" {
+  for_each = toset([for id in local.lxc_vmids : tostring(id)])
+
+  program = [
+    "bash", "${path.module}/Getting_IP_OR_VMID_From_Proxmox.sh",
+    "${var.proxmox_host}",
+    "${var.proxmox_api_token_id}",
+    "${var.proxmox_api_token_secret}",
+    "${var.proxmox_node_name}",
+    "${each.value}"
+  ]
+}
+
 locals {
-  home_ip = trimspace(data.http.my_ip.response_body)
+  home_ip   = trimspace(data.http.my_ip.response_body)
+  lxc_vmids = sort(jsondecode(data.external.lxc_vmids.result.vmids))
+  ips = {
+    for vmid, d in data.external.ips :
+    vmid => d.result.ip
+  }
 }
