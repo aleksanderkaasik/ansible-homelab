@@ -3,14 +3,14 @@ resource "dns_a_record_set" "proxmox" {
   zone = var.dns_zones["Main"]
   name = "proxmox"
   addresses = [
-    "192.168.1.253",
+    var.proxmox_host
   ]
   ttl = 300
 }
 
 resource "dns_ptr_record" "proxmox_ptr" {
   zone = var.dns_zones["192.168.1.0"]
-  name = "253"
+  name = split(".", var.proxmox_host)[3]
   ptr  = dns_a_record_set.proxmox.id
   ttl  = 300
 }

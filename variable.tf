@@ -1,8 +1,3 @@
-variable "proxmox_api_url" {
-  type        = string
-  description = "Base URL of the Proxmox Virtual Environment API (e.g. https://proxmox.example.com:8006/api2/json)."
-}
-
 variable "proxmox_api_token_id" {
   type        = string
   description = "API token ID used to authenticate against the Proxmox API (format: user@realm!tokenid)."
@@ -42,6 +37,23 @@ variable "proxmox_node_tls_insecure" {
   type        = bool
   description = "By default Proxmox Virtual Environment uses self-signed certificates."
   default     = true
+}
+
+variable "proxmox_host" {
+  type        = string
+  description = "The hostname or IP address of the Proxmox VE server."
+  default     = "192.168.0.253"
+}
+
+variable "proxmox_user" {
+  type        = string
+  description = "The username used to authenticate with the Proxmox VE API."
+}
+
+variable "proxmox_password" {
+  type        = string
+  description = "The password used to authenticate with the Proxmox VE API."
+  sensitive   = true
 }
 
 variable "dns_zones" {
@@ -90,4 +102,3 @@ variable "tsig_key_secret" {
   description = "Base64-encoded secret associated with the TSIG key used for secure DNS updates."
   sensitive   = true
 }
-
