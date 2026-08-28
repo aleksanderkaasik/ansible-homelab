@@ -18,12 +18,12 @@ terraform {
 }
 
 provider "proxmox" {
-  pm_api_url          = "https://${var.proxmox_host}:8006/api2/json"
+  pm_api_url = "https://${var.proxmox_host}:8006/api2/json"
   # pm_api_token_id     = var.proxmox_api_token_id
   # pm_api_token_secret = var.proxmox_api_token_secret
-  pm_tls_insecure     = var.proxmox_node_tls_insecure
-  pm_user = var.proxmox_user
-  pm_password = var.proxmox_password
+  pm_tls_insecure = var.proxmox_node_tls_insecure
+  pm_user         = var.proxmox_user
+  pm_password     = var.proxmox_password
 }
 
 provider "dns" {
@@ -45,7 +45,7 @@ data "http" "my_ip" {
 
 data "external" "lxc_vmids" {
   program = [
-    "bash", "${path.module}/Getting_IP_OR_VMID_From_Proxmox.sh",
+    "bash", "${path.module}/scripts/Getting_IP_OR_VMID_From_Proxmox.sh",
     "${var.proxmox_host}",
     "${var.proxmox_api_token_id}",
     "${var.proxmox_api_token_secret}",
@@ -57,7 +57,7 @@ data "external" "ips" {
   for_each = toset([for id in local.lxc_vmids : tostring(id)])
 
   program = [
-    "bash", "${path.module}/Getting_IP_OR_VMID_From_Proxmox.sh",
+    "bash", "${path.module}/scripts/Getting_IP_OR_VMID_From_Proxmox.sh",
     "${var.proxmox_host}",
     "${var.proxmox_api_token_id}",
     "${var.proxmox_api_token_secret}",

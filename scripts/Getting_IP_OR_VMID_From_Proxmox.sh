@@ -6,18 +6,21 @@ ProxmoxTokenSecret="$3"
 Node="$4"
 vmid="$5"
 
+ProxmoxHeader="Authorization: PVEAPIToken=${ProxmoxTOkenId}=${ProxmoxTokenSecret}"
+ProxmoxURL="https://$ProxmoxHost:8006/api2/json/nodes/$Node/lxc"
+
 if [[ -z $vmid ]]; then
   vmid=$(curl -sk \
-    -H "Authorization: PVEAPIToken=${ProxmoxTOkenId}=${ProxmoxTokenSecret}" \
-    "https://$ProxmoxHost:8006/api2/json/nodes/$Node/lxc" | jq -r '[.data[].vmid]'
+    -H "$ProxmoxHeader" \
+    "$ProxmoxURL" | jq -r '[.data[].vmid]'
   )
 
   jq -n --arg vmids "$vmid" '{"vmids": $vmids}'
 else
   IP=$(
   curl -sk \
-    -H "Authorization: PVEAPIToken=${ProxmoxTOkenId}=${ProxmoxTokenSecret}" \
-    "https://$ProxmoxHost:8006/api2/json/nodes/$Node/lxc/$vmid/interfaces" |
+    -H "$ProxmoxHeader" \
+    "$ProxmoxURL/$vmid/interfaces" |
     jq -r '.data[] | 
       select(.name == "eth0") | 
       ."ip-addresses"[] | 

@@ -17,9 +17,9 @@ ansible-playbook pterodactyl-panel.yml
 # ansible-playbook pterodactyl-wing.yml
 
 ansible-playbook zabbix-server.yml
-#ansible-playbook zabbix-agent.yml
+# ansible-playbook zabbix-agent.yml
 
-#ansible-playbook snmp.yml
+# ansible-playbook snmp.yml
 
-#ansible-playbook haproxy.yml
-#ansible-playbook nginx-reverse-proxy.yml
+# ansible-playbook haproxy.yml
+# ansible-playbook nginx-reverse-proxy.yml

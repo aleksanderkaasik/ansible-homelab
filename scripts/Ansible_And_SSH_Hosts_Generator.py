@@ -11,7 +11,10 @@ password = ""
 node = ""
 PrintMode = ""
 
-ticketUrl = f"{proxmoxHost}/api2/json/access/ticket"
+if PrintMode not in ["host", "ssh"]:
+    exit()
+    
+ticketUrl = f"https://{proxmoxHost}:8006/api2/json/access/ticket"
 payload = {"username": username, "password": password}
 
 responseTicket = requests.post(ticketUrl, data=payload, verify=False)
@@ -27,9 +30,10 @@ for x in range( len( content["resources"] )):
         continue
     
     for y in range( len( content["resources"][x]["instances"] )):
+        answer = ""
         vmID = content["resources"][x]["instances"][y]["attributes"]["vmid"]
-        configUrl = f"{proxmoxHost}/api2/json/nodes/{node}/lxc/{vmID}/config" 
-        interfaceUrl = f"{proxmoxHost}/api2/json/nodes/{node}/lxc/{vmID}/interfaces"
+        configUrl = f"https://{proxmoxHost}:8006/api2/json/nodes/{node}/lxc/{vmID}/config" 
+        interfaceUrl = f"https://{proxmoxHost}:8006/api2/json/nodes/{node}/lxc/{vmID}/interfaces"
         
         responseConfig = requests.get(configUrl, cookies=cookies, verify=False)
         responseInterfaces = requests.get(interfaceUrl, cookies=cookies, verify=False)
@@ -41,12 +45,10 @@ for x in range( len( content["resources"] )):
         ipAdresss = responseInterfaces.json()["data"][1]["ip-addresses"][0]["ip-address"]
         
         match PrintMode.lower():
-            case "ip":
+            case "host":
                 answer=f"\"{ipAdresss}\""
             case "ssh":
-                answer=f"    HostName {ipAdresss}\n    User ansible\n    Port 22\n    IdentityFile ~/.ssh/ansible"
-            case _:
-                exit()
+                answer=f"    HostName {ipAdresss}\n    User ansible\n    Port 22\n    IdentityFile ~/.ssh/ansible"                
 
         print(f"\n[{content['resources'][x]['name']}]")
         print(answer)

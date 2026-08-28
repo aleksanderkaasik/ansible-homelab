@@ -58,12 +58,12 @@ terraform apply
 
 ### 4) Configure Hosts
 
-After running terraform code to set up instance homelab infrastructure, then run a script to generate hosts for ansible hosts file, first edit the `script.py` add credential for the proxmox, and output mode.
+After running terraform code to set up instance homelab infrastructure, then run a script to generate hosts for ansible hosts file, first edit the `Ansible_And_SSH_Hosts_Generator.py` add credential for the proxmox, and output mode.
 
 Then run script
 
 ``` bash
-python script.py > hosts.ini
+python scripts/Ansible_And_SSH_Hosts_Generator.py > hosts.ini
 ```
 
 ### 5) Running the Playbooks
@@ -75,8 +75,8 @@ python script.py > hosts.ini
   **Linux / MacOS**
 
   ```bash
-  chmod +x main.sh
-  ./main.sh
+  chmod +x scripts/Run_All_Ansible_Playbooks.sh
+  scripts/Run_All_Ansible_Playbooks.sh
   ```
 
   > Note:  
