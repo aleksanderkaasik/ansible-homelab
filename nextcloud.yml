@@ -22,10 +22,10 @@
           - php-xml
           - php-imagick
           - php-zip
+          - php-apcu
           - zip
           - apache2
           - python3-pymysql
-          # Security
           - libmagickcore-6.q16-6-extra
 
     - name: Enable apache

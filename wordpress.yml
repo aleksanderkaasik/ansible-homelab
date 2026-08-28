@@ -191,13 +191,14 @@
           /* Multisite */
           define( 'WP_ALLOW_MULTISITE', true );
 
+          {% if networkEnabled %}
           define( 'MULTISITE', true );
           define( 'SUBDOMAIN_INSTALL', false );
           define( 'DOMAIN_CURRENT_SITE', '{{ domain_name }}' );
           define( 'PATH_CURRENT_SITE', '/' );
           define( 'SITE_ID_CURRENT_SITE', 1 );
           define( 'BLOG_ID_CURRENT_SITE', 1 );
-
+          {% endif %}
           {% endif %}
 
           /* That's all, stop editing! Happy publishing. */

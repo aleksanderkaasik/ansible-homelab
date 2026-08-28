@@ -66,6 +66,7 @@
               environment:
                 DATABASE_URL: "{{ database.engine }}://{{ database.user }}:{{ database.password }}@{{ database.host }}:{{ database.port }}/{{ database.name }}"
                 ROCKET_TLS: '{certs="/etc/ssl/certs/{{ public_key }}", key="/etc/ssl/private/{{ private_key }}"}'
+                ADMIN_TOKEN: '{{ vaultadmin }}'
               volumes:
                 - ./vw-data/:/data/
                 - /etc/ssl:/etc/ssl

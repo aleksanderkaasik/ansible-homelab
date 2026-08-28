@@ -1,6 +1,6 @@
 ---
 ip_address: "{{ ansible_default_ipv4.address }}"
-domain_name:
+domain_name: 
 
 database:
   engine: mysql
@@ -9,3 +9,5 @@ database:
   name:
   user:
   password:
+
+vaultadmin:
