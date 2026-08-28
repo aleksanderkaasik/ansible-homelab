@@ -89,6 +89,8 @@
             php_value opcache.enable 1
             php_value upload_tmp_dir 1024M
 
+            Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains"
+
             <Directory /var/www/nextcloud/>
               Require all granted
               AllowOverride All

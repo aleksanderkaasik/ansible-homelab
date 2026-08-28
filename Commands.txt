@@ -8,6 +8,13 @@ IsAdmin=2 #1 = yes / 2 = no
 
 sudo php artisan p:user:make --email=$Email --username=$UserName --name-first=$NameFirst --name-last=$NameLast --password=$Password --admin=$IsAdmin
 
+# --- Scanning new files in the nextcloud users, and updating a data in the database
+sudo -u www-data php occ files:scan --all
+
+sudo -u www-data php occ config:system:set default_phone_region --value="EE"
+sudo -u www-data php occ config:system:set maintenance_window_start --value=1 --type=integer
+sudo -u www-data php occ maintenance:repair --include-expensive
+
 # --- Nextcloud generation admin and datbase connection --- #
 DatabaseEngine=""
 DatabaseHost=""
