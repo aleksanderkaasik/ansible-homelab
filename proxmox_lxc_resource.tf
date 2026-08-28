@@ -248,7 +248,7 @@ resource "proxmox_lxc" "pterodactyl-wing" {
 
   features {
     nesting = true
-    keyctl = true
+    keyctl  = true
   }
 
   rootfs {
