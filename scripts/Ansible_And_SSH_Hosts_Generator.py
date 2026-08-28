@@ -1,6 +1,7 @@
 import requests
 import urllib3
 import json
+import socket
 
 # Disable insecure warnings (optional)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -10,7 +11,7 @@ username = ""
 password = ""
 node = ""
 PrintMode = ""
-
+   
 if PrintMode not in ["host", "ssh"]:
     exit()
     
@@ -44,11 +45,16 @@ for x in range( len( content["resources"] )):
         config = responseConfig.json()["data"]["hostname"]
         ipAdresss = responseInterfaces.json()["data"][1]["ip-addresses"][0]["ip-address"]
         
+        try:
+            hostname, aliases, addresses = socket.gethostbyaddr(ipAdresss)
+        except socket.herror:
+            hostname = ipAdresss
+        
         match PrintMode.lower():
             case "host":
-                answer=f"\"{ipAdresss}\""
+                print(f"\n[{content['resources'][x]['name']}]")
+                answer=f"\"{hostname}\""
             case "ssh":
-                answer=f"    HostName {ipAdresss}\n    User ansible\n    Port 22\n    IdentityFile ~/.ssh/ansible"                
-
-        print(f"\n[{content['resources'][x]['name']}]")
+                answer=f"HostName {hostname}\n    User ansible\n    Port 22\n    IdentityFile ~/.ssh/ansible"                
+        
         print(answer)
