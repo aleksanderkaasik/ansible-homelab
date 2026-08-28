@@ -50,11 +50,13 @@ for x in range( len( content["resources"] )):
         except socket.herror:
             hostname = ipAdresss
         
+        host = content['resources'][x]['name']
+        
         match PrintMode.lower():
             case "host":
-                print(f"\n[{content['resources'][x]['name']}]")
+                print(f"\n[{host}]")
                 answer=f"\"{hostname}\""
             case "ssh":
-                answer=f"HostName {hostname}\n    User ansible\n    Port 22\n    IdentityFile ~/.ssh/ansible"                
+                answer=f"Host {host}\n    HostName {hostname}\n    User ansible\n    Port 22\n    IdentityFile ~/.ssh/ansible"                
         
         print(answer)
