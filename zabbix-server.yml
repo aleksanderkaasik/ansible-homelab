@@ -17,7 +17,7 @@
       ansible.builtin.apt:
         update_cache: true
 
-    - name: Install Zabbix server, FrontEnd, Agent2, Apache, PHP and Zabbix Agent2 plugins
+    - name: Install Zabbix server, FrontEnd, Agent2, PHP and Zabbix Agent2 plugins
       become: true
       ansible.builtin.apt:
         name:
@@ -26,7 +26,6 @@
           - zabbix-sql-scripts
           - zabbix-agent2
           - python3-pymysql
-          - apache2
           - php
           # Install Zabbix Agent2 plugins
           - zabbix-agent2-plugin-mongodb
@@ -42,7 +41,6 @@
       loop:
         - zabbix-server
         - zabbix-agent2
-        - apache2
 
     - name: Create Zabbix database
       become: true
@@ -80,75 +78,24 @@
         login_port: "{{ database.port }}"
         query: SET GLOBAL log_bin_trust_function_creators = 1;
 
-    - name: SSL certificate request generator
-      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
-
     - name: Configuring locale
       become: true
       community.general.locale_gen:
         name: en_US.UTF-8
         state: present
-      notify: Restart Apache2
 
-    - name: Enable Apache2 mods for HTTPS
-      become: true
-      community.general.apache2_module:
-        state: present
-        name: "{{ item }}"
-        identifier: "{{ item }}_module"
-        ignore_configcheck: true
-      notify: Restart Apache2
-      loop:
-        - rewrite
-        - headers
-        - ssl
-        - env
-        - dir
-        - mime
-
-    - name: Configuring Zabbix apache config
-      become: true
-      ansible.builtin.copy:
-        content: |
-          <VirtualHost *:80>
-              ServerName {{ domain_name }}
-
-              RewriteEngine On
-              RewriteCond %{HTTPS} !=on
-              RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]
-          </VirtualHost>
-          <VirtualHost *:443>
-              DocumentRoot "/usr/share/zabbix/ui"
-
-              ServerName {{ domain_name }}
-
-              AllowEncodedSlashes On
-
-              php_value post_max_size 16M
-              php_value max_execution_time 300
-              php_value max_input_time 300
-
-              <Directory "/usr/share/zabbix/ui">
-                  Require all granted
-                  AllowOverride all
-              </Directory>
-
-              SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ public_key }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
-          </VirtualHost>
-        dest: /etc/apache2/sites-enabled/zabbix.conf
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Restart Apache2
-
-    - name: Disable default Apache site
-      become: true
-      ansible.builtin.file:
-        path: /etc/apache2/sites-enabled/000-default.conf
-        state: absent
-      notify: Restart Apache2
+    - name: Running Apache2 role
+      ansible.builtin.include_role:
+        name: apache2
+      vars:
+        IsHttpsEnabled: true
+        RedirectHttpsIsEnabled: true
+        path: "/usr/share/zabbix/ui"
+        AddinatalConfig: |
+          AllowEncodedSlashes On
+          php_value post_max_size 16M
+          php_value max_execution_time 300
+          php_value max_input_time 300
 
     - name: Configuring Zabbix Server
       become: true
@@ -180,10 +127,4 @@
       become: true
       ansible.builtin.service:
         name: zabbix-server
-        state: restarted
-
-    - name: Restart Apache2
-      become: true
-      ansible.builtin.service:
-        name: apache2
         state: restarted

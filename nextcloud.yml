@@ -24,7 +24,6 @@
           - php-zip
           - php-apcu
           - zip
-          - apache2
           - python3-pymysql
           - libmagickcore-6.q16-6-extra
 
@@ -51,72 +50,19 @@
         owner: www-data
         group: www-data
 
-    - name: SSL certificate request generator
-      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
-
-    - name: Enable apache mods for https
-      become: true
-      community.general.apache2_module:
-        state: present
-        name: "{{ item }}"
-      notify: Restart Apache2
-      loop:
-        - ssl
-        - rewrite
-        - headers
-        - env
-        - dir
-        - mime
-
-    - name: Adding apache config
-      become: true
-      ansible.builtin.copy:
-        content: |
-          <VirtualHost *:80>
-            ServerName {{ domain_name }}
-
-            RewriteEngine On
-            RewriteCond %{HTTPS} !=on
-            RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]
-          </VirtualHost>
-
-          <VirtualHost *:443>
-            ServerName {{ domain_name }}
-            DocumentRoot "/var/www/nextcloud"
-
-            php_value max_execution_time 1024M
-            php_value memory_limit 1024M
-            php_value opcache.enable 1
-            php_value upload_tmp_dir 1024M
-
-            Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains"
-
-            <Directory /var/www/nextcloud/>
-              Require all granted
-              AllowOverride All
-              Options FollowSymLinks MultiViews
-
-              <IfModule mod_dav.c>
-                Dav off
-              </IfModule>
-            </Directory>
-
-              SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ public_key }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
-            </VirtualHost>
-        dest: /etc/apache2/sites-enabled/nextcloud.conf
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Restart Apache2
-
-    - name: Disable default Apache site
-      become: true
-      ansible.builtin.file:
-        path: /etc/apache2/sites-enabled/000-default.conf
-        state: absent
-      notify: Restart Apache2
+    - name: Running Apache2 role
+      ansible.builtin.include_role:
+        name: apache2
+      vars:
+        IsHttpsEnabled: true
+        RedirectHttpsIsEnabled: true
+        path: "/var/www/nextcloud"
+        AddinatalConfig: |
+          php_value max_execution_time 1024M
+          php_value memory_limit 1024M
+          php_value opcache.enable 1
+          php_value upload_tmp_dir 1024M
+          Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains"
 
     - name: Create NextCloud database
       become: true
@@ -144,10 +90,3 @@
         priv:
           "{{ database.name }}.*:ALL"
         state: present
-
-  handlers:
-    - name: Restart Apache2
-      become: true
-      ansible.builtin.service:
-        name: apache2
-        state: restarted

@@ -1,0 +1,29 @@
+{% for port in [80, 443] if port == 80 or IsHttpsEnabled %}
+<VirtualHost *:{{ port }}>
+    ServerName {{ domain_name }}
+{% if port == 80 and RedirectHttpsIsEnabled %}
+    RewriteEngine On
+    RewriteCond %{HTTPS} !=on
+    RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]
+{% else %}
+{% if path.startswith('/') %}
+    DocumentRoot "{{ path }}"
+    <Directory {{ path }}>
+        Require all granted
+        AllowOverride All
+        Options FollowSymLinks MultiViews
+    </Directory>
+{% else %}
+    ProxyPreserveHost On
+    ProxyPass "/" "{{ path }}"
+    ProxyPassReverse "/" "{{ path }}"
+{% endif %}
+    {{ AddinatalConfig }}
+{% if port == 443 and IsHttpsEnabled %}
+    SSLEngine on
+    SSLCertificateFile /etc/ssl/certs/{{ public_key }}
+    SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
+{% endif %}
+{% endif %}
+</VirtualHost>
+{% endfor %}

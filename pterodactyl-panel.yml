@@ -33,8 +33,7 @@
           - tar
           - unzip
           - git
-          - mysql-client
-          - apache2
+          - mysql-client    
           - python3-pymysql
 
     - name: Download Composer installer
@@ -97,7 +96,6 @@
         path: /var/www/pterodactyl/resources/scripts/components/server/console/ServerDetailsBlock.tsx
         regexp: ':\$\{match\.port\}'
         replace: ''
-
 
     - name: Create Pterodactyl database
       become: true
@@ -302,71 +300,19 @@
         state: started
         enabled: true
 
-    - name: Installing ssl cert for https connection
-      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
-
-    - name: Enable apache mods for https
-      become: true
-      community.general.apache2_module:
-        state: present
-        name: "{{ item }}"
-      notify: Restart Apache2
-      loop:
-        - ssl
-        - rewrite
-        - headers
-        - env
-        - dir
-        - mime
-
-    - name: Adding apache config
-      become: true
-      ansible.builtin.copy:
-        content: |
-          <VirtualHost *:80>
-            ServerName {{ domain_name }}
-            RewriteEngine On
-            RewriteCond %{HTTPS} !=on
-            RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]
-          </VirtualHost>
-
-          <VirtualHost *:443>
-              DocumentRoot "/var/www/pterodactyl/public"
-
-              AllowEncodedSlashes On
-
-              php_value upload_max_filesize 100M
-              php_value post_max_size 100M
-
-              <Directory "/var/www/pterodactyl/public">
-                  Require all granted
-                  AllowOverride all
-              </Directory>
-
-              SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ public_key }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
-          </VirtualHost>
-        dest: /etc/apache2/sites-enabled/pterodactyl.conf
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Restart Apache2
-
-    - name: Disable default Apache site
-      become: true
-      ansible.builtin.file:
-        path: /etc/apache2/sites-enabled/000-default.conf
-        state: absent
-      notify: Restart Apache2
+    - name: Running Apache2 role
+      ansible.builtin.include_role:
+        name: apache2
+      vars:
+        IsHttpsEnabled: true
+        RedirectHttpsIsEnabled: true
+        path: "/var/www/pterodactyl/public"
+        AddinatalConfig: |
+          AllowEncodedSlashes On
+          php_value upload_max_filesize 100M
+          php_value post_max_size 100M
 
   handlers:
-    - name: Restart Apache2
-      become: true
-      ansible.builtin.service:
-        name: apache2
-        state: restarted
-
     - name: Restart Pterodactyl
       become: true
       ansible.builtin.service:

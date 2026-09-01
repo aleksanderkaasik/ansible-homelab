@@ -1,0 +1,61 @@
+- name: Install Apache2
+  become: true
+  ansible.builtin.apt:
+    name:
+      - apache2
+
+- name: Append module
+  set_fact:
+    apachemodules: |
+      {{
+        ['headers', 'env', 'dir', 'mime']
+        + (['proxy', 'proxy_http'] if not path.startswith('/') else [])
+        + (['ssl'] if IsHttpsEnabled | bool else [])
+        + (['rewrite'] if IsHttpsEnabled | bool and RedirectHttpsIsEnabled | bool else [])
+      }}
+
+- name: Enable apache mods for https
+  become: true
+  community.general.apache2_module:
+    state: present
+    name: "{{ item }}"
+  notify: Restart Apache2
+  loop: "{{ apachemodules }}"
+
+- name: Enable apache mods for https
+  become: true
+  community.general.apache2_module:
+    state: absent
+    name: "{{ item }}"
+  notify: Restart Apache2
+  loop:
+    - headers
+    - env
+    - dir
+    - mime
+    - ssl
+    - rewrite
+    - proxy
+    - proxy_http
+  when: item not in apachemodules
+
+- name: Adding site config
+  become: true
+  ansible.builtin.template:
+    src: site-config.j2
+    dest: /etc/apache2/sites-enabled/{{ domain_name }}.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Apache2
+
+- name: SSL certificate request generator
+  ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
+  when: IsHttpsEnabled | bool
+
+- name: Disable default Apache site
+  become: true
+  ansible.builtin.file:
+    path: /etc/apache2/sites-enabled/000-default.conf
+    state: absent
+  notify: Restart Apache2

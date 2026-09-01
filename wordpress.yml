@@ -68,77 +68,26 @@
           "{{ database.name }}.*:ALL"
         state: present
 
-    - name: SSL certificate request generator
-      ansible.builtin.include_tasks: tasks/adding-ssl-cert.yml
+    - name: Running Apache2 role
+      ansible.builtin.include_role:
+        name: apache2
+      vars:
+        IsHttpsEnabled: true
+        RedirectHttpsIsEnabled: true
+        path: "/var/www/wordpress"
+        AddinatalConfig:
 
-    - name: Enable apache mods for https
-      become: true
-      community.general.apache2_module:
-        state: present
-        name: "{{ item }}"
-      notify: Restart Apache2
-      loop:
-        - ssl
-        - rewrite
-        - headers
-        - env
-        - dir
-        - mime
+    #         <Directory /var/www/wordpress>
+    #             Options FollowSymLinks
+    #             AllowOverride Limit Options FileInfo
+    #             DirectoryIndex index.php
+    #             Require all granted
+    #         </Directory>
 
-    - name: Add WordPress Apache2 config
-      become: true
-      ansible.builtin.copy:
-        content: |
-          <VirtualHost *:80>
-            DocumentRoot /var/www/wordpress
-
-            ServerName {{ domain_name }}
-
-            <Directory /var/www/wordpress>
-                Options FollowSymLinks
-                AllowOverride Limit Options FileInfo
-                DirectoryIndex index.php
-                Require all granted
-            </Directory>
-
-            <Directory /var/www/wordpress/wp-content>
-                Options FollowSymLinks
-                Require all granted
-            </Directory>
-          </VirtualHost>
-
-          <VirtualHost *:443>
-              DocumentRoot /var/www/wordpress
-              ServerName {{ domain_name }}
-
-              SSLEngine on
-              SSLCertificateFile /etc/ssl/certs/{{ public_key }}
-              SSLCertificateKeyFile /etc/ssl/private/{{ private_key }}
-
-              <Directory /var/www/wordpress>
-                  Options FollowSymLinks
-                  AllowOverride Limit Options FileInfo
-                  DirectoryIndex index.php
-                  Require all granted
-              </Directory>
-
-              <Directory /var/www/wordpress/wp-content>
-                  Options FollowSymLinks
-                  Require all granted
-              </Directory>
-          </VirtualHost>
-        dest: /etc/apache2/sites-enabled/wordpress.conf
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Restart Apache2
-
-    - name: Disable default Apache site
-      become: true
-      ansible.builtin.file:
-        path: /etc/apache2/sites-enabled/000-default.conf
-        state: absent
-      notify: Restart Apache2
+    #         <Directory /var/www/wordpress/wp-content>
+    #             Options FollowSymLinks
+    #             Require all granted
+    #         </Directory>
 
     - name: Add WordPress config
       become: true
@@ -239,10 +188,3 @@
         owner: www-data
         group: www-data
         mode: "0644"
-
-  handlers:
-    - name: Restart Apache2
-      become: true
-      ansible.builtin.service:
-        name: apache2
-        state: restarted

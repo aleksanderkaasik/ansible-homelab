@@ -1,0 +1,10 @@
+---
+modules:
+  - headers
+  - env
+  - dir
+  - mime
+  - ssl
+  - rewrite
+  - proxy
+  - proxy_http
