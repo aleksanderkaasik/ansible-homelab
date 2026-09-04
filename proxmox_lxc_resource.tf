@@ -424,3 +424,45 @@ resource "proxmox_lxc" "haproxy" {
     ]
   }
 }
+
+resource "proxmox_lxc" "office" {
+  target_node     = var.proxmox_node_name
+  hostname        = "office"
+  ostemplate      = var.os_image
+  password        = var.proxmox_vm_password
+  unprivileged    = true
+  start           = true
+  cores           = 2
+  memory          = 4096
+  tags            = "test;ubuntu"
+  ssh_public_keys = var.public_ssh_key
+  onboot          = true
+
+  network {
+    name     = "eth0"
+    bridge   = "vmbr0"
+    ip       = "dhcp"
+    firewall = false
+  }
+
+  features {
+    nesting = true
+  }
+
+  rootfs {
+    storage = "VM-Storage"
+    size    = "16G"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      ostemplate,
+      password,
+      ssh_public_keys
+    ]
+  }
+}
+
+output "test" {
+  value = ["test", "tsdfg"][1]
+}

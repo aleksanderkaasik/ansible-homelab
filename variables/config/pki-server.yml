@@ -3,7 +3,7 @@
 # domain_name:
 
 # ca_cert_passphrase:
-# address:
+
 # nodejs:
 #   hostname:
 #   port:
@@ -11,6 +11,3 @@
 # pki:
 #   address:
 #   port:
-
-# get_ca:
-# post_sighed:

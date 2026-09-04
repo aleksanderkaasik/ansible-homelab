@@ -2,8 +2,7 @@
 - name: Running Zabbix Server Playbook
   hosts:
   vars_files:
-    - variables/config/mysql.yml
-    - variables/config/pki-server.yml
+    - variables/system/url.yml
     - variables/system/certificate.yml
     - variables/config/zabbix-server.yml
   tasks:
@@ -47,8 +46,8 @@
       community.mysql.mysql_db:
         name: "{{ database.name }}"
         state: present
-        login_user: "{{ username }}"
-        login_password: "{{ password }}"
+        login_user: "{{ RemoteAdminDatabase.Username }}"
+        login_password: "{{ RemoteAdminDatabase.Password}}"
         login_host: "{{ database.host }}"
         login_port: "{{ database.port }}"
         encoding: utf8mb4
@@ -58,8 +57,8 @@
     - name: Create MySQL users
       become: true
       community.mysql.mysql_user:
-        login_user: "{{ username }}"
-        login_password: "{{ password }}"
+        login_user: "{{ RemoteAdminDatabase.Username }}"
+        login_password: "{{ RemoteAdminDatabase.Password}}"
         login_host: "{{ database.host }}"
         login_port: "{{ database.port }}"
         column_case_sensitive: true
@@ -72,8 +71,8 @@
 
     - name: Select query to test_db with named_args
       community.mysql.mysql_query:
-        login_user: "{{ username }}"
-        login_password: "{{ password }}"
+        login_user: "{{ RemoteAdminDatabase.Username }}"
+        login_password: "{{ RemoteAdminDatabase.Password }}"
         login_host: "{{ database.host }}"
         login_port: "{{ database.port }}"
         query: SET GLOBAL log_bin_trust_function_creators = 1;

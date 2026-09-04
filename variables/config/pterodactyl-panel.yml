@@ -20,6 +20,10 @@
 #   user:
 #   password:
 
+# RemoteAdminDatabase:
+#   Username:
+#   Password:
+
 # redis:
 #   host:
 #   port:

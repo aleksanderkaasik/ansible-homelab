@@ -2,7 +2,7 @@
 - name: Running Pterodactyl Wing Playbook
   hosts:
   vars_files:
-    - variables/config/pki-server.yml
+    - variables/system/url.yml
     - variables/system/certificate.yml
     - variables/config/pterodactyl-wing.yml
   tasks:

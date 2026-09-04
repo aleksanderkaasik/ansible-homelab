@@ -2,8 +2,7 @@
 - name: Running NextCloud Playbook
   hosts:
   vars_files:
-    - variables/config/mysql.yml
-    - variables/config/pki-server.yml
+    - variables/system/url.yml
     - variables/system/certificate.yml
     - variables/config/nextcloud.yml
   tasks:
@@ -69,8 +68,8 @@
       community.mysql.mysql_db:
         name: "{{ database.name }}"
         state: present
-        login_user: "{{ username }}"
-        login_password: "{{ password }}"
+        login_user: "{{ RemoteAdminDatabase.Username }}"
+        login_password: "{{ RemoteAdminDatabase.Password }}"
         login_host: "{{ database.host }}"
         login_port: "{{ database.port }}"
         encoding: utf8mb4
@@ -79,8 +78,8 @@
     - name: Create MySQL users
       become: true
       community.mysql.mysql_user:
-        login_user: "{{ username }}"
-        login_password: "{{ password }}"
+        login_user: "{{ RemoteAdminDatabase.Username }}"
+        login_password: "{{ RemoteAdminDatabase.Password }}"
         login_host: "{{ database.host }}"
         login_port: "{{ database.port }}"
         column_case_sensitive: true
