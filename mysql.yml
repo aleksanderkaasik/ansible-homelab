@@ -1,6 +1,6 @@
 ---
 - name: MySQL server
-  hosts: mysql
+  hosts:
   vars_files:
     - variables/config/mysql.yml
   tasks:

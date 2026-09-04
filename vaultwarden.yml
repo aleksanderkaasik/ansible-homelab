@@ -1,6 +1,6 @@
 ---
 - name: Running VaultWarden Playbook
-  hosts: vaultwarden
+  hosts:
   vars_files:
     - variables/config/mysql.yml
     - variables/config/pki-server.yml

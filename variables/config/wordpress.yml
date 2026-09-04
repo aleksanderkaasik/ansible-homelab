@@ -1,23 +1,23 @@
 ---
-ip_address: "{{ ansible_default_ipv4.address }}"
-domain_name:
+# ip_address:
+# domain_name:
 
-database:
-  engine: "mysql"
-  host:
-  port:
-  name:
-  user:
-  password:
+# database:
+#   engine:
+#   host:
+#   port:
+#   name:
+#   user:
+#   password:
 
-multisiteIsEnabled: false
+# multisiteIsEnabled: false
 
-# https://api.wordpress.org/secret-key/1.1/salt/
-auth_key:
-secure_auth_key:
-logged_in_key:
-nonce_key:
-auth_salt:
-secure_auth_salt:
-logged_in_salt:
-nonce_salt:
+# # https://api.wordpress.org/secret-key/1.1/salt/
+# auth_key:
+# secure_auth_key:
+# logged_in_key:
+# nonce_key:
+# auth_salt:
+# secure_auth_salt:
+# logged_in_salt:
+# nonce_salt:

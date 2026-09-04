@@ -18,7 +18,7 @@
 - name: Generate CSR
   become: true
   community.crypto.openssl_csr:
-    path: "/etc/ssl/{{ csr }}"
+    path: "/etc/ssl/{{ csr_key}}"
     privatekey_path: "/etc/ssl/private/{{ private_key }}"
     country_name: "{{ subject.country }}"
     state_or_province_name: "{{ subject.state }}"
@@ -36,7 +36,7 @@
 
 - name: Read CSR
   ansible.builtin.slurp:
-    src: "/etc/ssl/{{ csr }}"
+    src: "/etc/ssl/{{ csr_key}}"
   register: csr_file
 
 - name: Generate sighed public key
@@ -49,7 +49,7 @@
     body:
       DomainName: "{{ domain_name }}"
       CertificateSigningRequest:
-        filename: "{{ csr }}"
+        filename: "{{ csr_key}}"
         content: "{{ csr_file.content | b64decode }}"
         mime_type: text/plain
     return_content: true

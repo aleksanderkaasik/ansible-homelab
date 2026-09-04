@@ -1,6 +1,6 @@
 ---
 - name: Running Nginx Reverse Proxy Playbook
-  hosts: nginx-reverse
+  hosts:
   vars_files:
     - variables/config/nginx-reverse-proxy.yml
     - variables/system/certificate.yml

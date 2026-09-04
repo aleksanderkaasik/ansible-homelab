@@ -1,6 +1,6 @@
 ---
 - name: Running Bind9 Playbook
-  hosts: bind9
+  hosts:
   vars_files:
     - variables/config/bind9.yml
   tasks:

@@ -1,6 +1,6 @@
 ---
 - name: Running Pterodactyl Panel Playbook
-  hosts: pterodactyl-panel
+  hosts:
   vars_files:
     - variables/config/pki-server.yml
     - variables/config/mysql.yml

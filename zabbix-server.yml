@@ -1,6 +1,6 @@
 ---
 - name: Running Zabbix Server Playbook
-  hosts: zabbix-server
+  hosts:
   vars_files:
     - variables/config/mysql.yml
     - variables/config/pki-server.yml

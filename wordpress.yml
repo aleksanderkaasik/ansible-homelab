@@ -1,6 +1,6 @@
 ---
 - name: Running WordPress Playbook
-  hosts: wordpress
+  hosts:
   vars_files:
     - variables/config/mysql.yml
     - variables/config/pki-server.yml

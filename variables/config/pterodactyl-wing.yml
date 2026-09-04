@@ -1,8 +1,8 @@
 ---
-ip_address: "{{ ansible_default_ipv4.address }}"
-domain_name:
+# ip_address:
+# domain_name:
 
-remote_server:
-uuid:
-token_id:
-token:
+# remote_server:
+# uuid:
+# token_id:
+# token:

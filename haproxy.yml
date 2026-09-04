@@ -1,6 +1,6 @@
 ---
 - name: Running HAProxy Playbook
-  hosts: haproxy
+  hosts:
   vars_files:
     - variables/config/haproxy.yml
   tasks:

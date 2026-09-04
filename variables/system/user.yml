@@ -1,14 +1,14 @@
 ---
-admin:
-  user:
-  group:
-  key:
-  password:
+# admin:
+#   user:
+#   group:
+#   key:
+#   password:
 
-ansible:
-  user:
-  group:
-  key:
+# ansible:
+#   user:
+#   group:
+#   key:
 
-root:
-  key:
+# root:
+#   key:

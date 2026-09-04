@@ -1,6 +1,6 @@
 ---
 - name: Running PKI Server Playbook
-  hosts: pki-server
+  hosts:
   vars_files:
     - variables/system/user.yml
     - variables/system/certificate.yml
