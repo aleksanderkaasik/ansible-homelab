@@ -47,7 +47,7 @@
       community.mysql.mysql_db:
         name: "{{ database.name }}"
         state: present
-        login_user: "{{ RemoteAdminDatabase.UserName }}"
+        login_user: "{{ RemoteAdminDatabase.Username }}"
         login_password: "{{ RemoteAdminDatabase.Password }}"
         login_host: "{{ database.host }}"
         login_port: "{{ database.port }}"
@@ -55,7 +55,7 @@
     - name: Create WordPress users
       become: true
       community.mysql.mysql_user:
-        login_user: "{{ RemoteAdminDatabase.UserName }}"
+        login_user: "{{ RemoteAdminDatabase.Username }}"
         login_password: "{{ RemoteAdminDatabase.Password }}"
         login_host: "{{ database.host }}"
         login_port: "{{ database.port }}"

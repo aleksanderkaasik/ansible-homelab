@@ -1,7 +1,7 @@
 - name: Running CA certificate install Playbook
   hosts: all
   vars_files:
-    - variables/config/pki-server.yml
+    - variables/system/url.yml
   tasks:
     - name: Install Certificate Authority certificate
       become: true

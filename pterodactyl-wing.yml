@@ -44,7 +44,7 @@
           token: {{ token }}
           api:
             host: 0.0.0.0
-            port: 9443
+            port: 443
             ssl:
               enabled: true
               cert: /etc/ssl/certs/{{ public_key }}
